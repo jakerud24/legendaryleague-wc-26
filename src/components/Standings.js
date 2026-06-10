@@ -1,25 +1,16 @@
 import React, { useState } from 'react';
-import { TEAMS, ROUND_LABELS, SCORING } from '../data';
+import { TEAMS } from '../data';
 
-export default function Standings({ managers, getSortedManagers, getTeamPoints, roundStatuses, teamStats }) {
+export default function Standings({ managers, getSortedManagers, getTeamPts, teamPoints }) {
   const [expanded, setExpanded] = useState(null);
   const sorted = getSortedManagers();
-
   const getTeam = (id) => TEAMS.find(t => t.id === id);
 
   const getPillClass = (teamId) => {
-    const pts = getTeamPoints(teamId);
+    const pts = getTeamPts(teamId);
     if (pts === 0) return 'team-pill eliminated';
-    if (pts >= 4) return 'team-pill deep';
+    if (pts >= 6) return 'team-pill deep';
     return 'team-pill alive';
-  };
-
-  const getMaxPossible = (mgr) => {
-    if (!mgr?.teams) return 0;
-    return mgr.teams.reduce((sum, tid) => {
-      const current = getTeamPoints(tid);
-      return sum + Math.max(current, 10);
-    }, 0);
   };
 
   if (sorted.length === 0) {
@@ -33,67 +24,66 @@ export default function Standings({ managers, getSortedManagers, getTeamPoints, 
   }
 
   return (
-    <div className="standings-list">
-      {sorted.map((mgr, idx) => {
-        const isExpanded = expanded === mgr.id;
-        return (
-          <div
-            key={mgr.id}
-            className={`manager-card ${idx === 0 ? 'leader' : ''}`}
-            onClick={() => setExpanded(isExpanded ? null : mgr.id)}
-          >
-            <div className="manager-card-header">
-              <span className={`pick-number ${idx < 3 ? 'top' : ''}`}>#{idx + 1}</span>
-              <span className="manager-name">{mgr.name}</span>
-              <div className="manager-teams-inline">
-                {(mgr.teams || []).map(tid => {
-                  const team = getTeam(tid);
-                  if (!team) return null;
-                  return (
-                    <span key={tid} className={getPillClass(tid)}>
-                      {team.flag} {team.name}
-                      <span className="team-pill-pts">{getTeamPoints(tid)}</span>
-                    </span>
-                  );
-                })}
-              </div>
-              <span className="manager-total">{mgr.score}</span>
-            </div>
-
-            {isExpanded && (
-              <div className="manager-expand">
-                <div className="expand-row">
+    <div>
+      <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-muted)', marginBottom: 16, letterSpacing: '0.1em' }}>
+        SCORING: 3pts WIN · 1pt DRAW · 1pt ET/PENS LOSS · 0pts REG LOSS · FINAL +1 BONUS · 3RD PLACE EXCLUDED
+      </div>
+      <div className="standings-list">
+        {sorted.map((mgr, idx) => {
+          const isExpanded = expanded === mgr.id;
+          return (
+            <div key={mgr.id} className={`manager-card ${idx === 0 ? 'leader' : ''}`} onClick={() => setExpanded(isExpanded ? null : mgr.id)}>
+              <div className="manager-card-header">
+                <span className={`pick-number ${idx < 3 ? 'top' : ''}`}>#{idx + 1}</span>
+                <span className="manager-name">{mgr.name}</span>
+                <div className="manager-teams-inline">
                   {(mgr.teams || []).map(tid => {
                     const team = getTeam(tid);
                     if (!team) return null;
-                    const pts = getTeamPoints(tid);
-                    const round = roundStatuses[tid] || 'group';
-                    const stats = teamStats[tid];
                     return (
-                      <div key={tid} className="expand-team">
-                        <span className="expand-team-flag">{team.flag}</span>
-                        <div>
-                          <div className="expand-team-name">{team.name}</div>
-                          <div className="expand-team-round">{ROUND_LABELS[round]}</div>
-                          {stats && (
-                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                              GD: {stats.gd >= 0 ? '+' : ''}{stats.gd}
-                            </div>
-                          )}
-                        </div>
-                        <span className="expand-team-pts">{pts}</span>
-                      </div>
+                      <span key={tid} className={getPillClass(tid)}>
+                        {team.flag} {team.name}
+                        <span className="team-pill-pts">{getTeamPts(tid)}</span>
+                      </span>
                     );
                   })}
                 </div>
-                <div className="expand-meta">
-                  GD: {mgr.gd >= 0 ? '+' : ''}{mgr.gd} · Max possible: {getMaxPossible(mgr)} pts · Draft pick: #{idx + 1}
-                </div>
+                <span className="manager-total">{mgr.score}</span>
               </div>
-            )}
-          </div>
-        );
-      })}
+              {isExpanded && (
+                <div className="manager-expand">
+                  <div className="expand-row">
+                    {(mgr.teams || []).map(tid => {
+                      const team = getTeam(tid);
+                      if (!team) return null;
+                      const pts = getTeamPts(tid);
+                      const data = teamPoints[tid] || {};
+                      return (
+                        <div key={tid} className="expand-team">
+                          <span className="expand-team-flag">{team.flag}</span>
+                          <div>
+                            <div className="expand-team-name">{team.name}</div>
+                            <div className="expand-team-round" style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>
+                              {data.played || 0}GP · {data.wins || 0}W {data.draws || 0}D {data.losses || 0}L
+                            </div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                              GD: {(data.gd || 0) >= 0 ? '+' : ''}{data.gd || 0}
+                            </div>
+                          </div>
+                          <span className="expand-team-pts">{pts}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="expand-meta">
+                    GD: {mgr.gd >= 0 ? '+' : ''}{mgr.gd} · {mgr.score} pts · Draft pick order: #{idx + 1}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

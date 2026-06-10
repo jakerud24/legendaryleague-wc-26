@@ -1,7 +1,7 @@
 import React from 'react';
-import { TEAMS, CONFEDERATIONS, ROUND_LABELS } from '../data';
+import { TEAMS, CONFEDERATIONS } from '../data';
 
-export default function Nations({ managers, roundStatuses, getTeamPoints }) {
+export default function Nations({ managers, teamPoints, getTeamPts }) {
   const allAssigned = Object.values(managers).reduce((acc, mgr) => {
     (mgr.teams || []).forEach(tid => { acc[tid] = mgr.name; });
     return acc;
@@ -18,20 +18,22 @@ export default function Nations({ managers, roundStatuses, getTeamPoints }) {
             <div className="nations-grid">
               {teams.map(team => {
                 const owner = allAssigned[team.id];
-                const pts = getTeamPoints(team.id);
-                const round = roundStatuses[team.id];
+                const pts = getTeamPts(team.id);
+                const data = teamPoints[team.id] || {};
                 return (
                   <div key={team.id} className={`nation-card ${owner ? 'owned' : 'unowned'}`}>
                     <div className="nation-flag">{team.flag}</div>
                     <div className="nation-name">{team.name}</div>
                     <div className="nation-meta">GRP {team.group}</div>
+                    {data.played > 0 && (
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>
+                        {data.played}GP · GD {data.gd >= 0 ? '+' : ''}{data.gd}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div className="nation-owner">{owner || 'Unowned'}</div>
-                      {owner && <div className="nation-pts">{pts}pt{pts !== 1 ? 's' : ''}</div>}
+                      {owner && <div className="nation-pts">{pts}pts</div>}
                     </div>
-                    {round && round !== 'group' && (
-                      <div className="nation-round-badge">{ROUND_LABELS[round]}</div>
-                    )}
                   </div>
                 );
               })}
