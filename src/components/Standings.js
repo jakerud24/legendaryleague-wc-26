@@ -1,17 +1,10 @@
 import React, { useState } from 'react';
 import { TEAMS } from '../data';
 
-export default function Standings({ managers, getSortedManagers, getTeamPts, getTeamData }) {
+export default function Standings({ managers, getSortedManagers, getTeamPts, getTeamStats }) {
   const [expanded, setExpanded] = useState(null);
   const sorted = getSortedManagers();
   const getTeam = (id) => TEAMS.find(t => t.id === id);
-
-  const getPillClass = (teamId) => {
-    const pts = getTeamPts(teamId);
-    if (pts === 0) return 'team-pill';
-    if (pts >= 6) return 'team-pill deep';
-    return 'team-pill alive';
-  };
 
   if (sorted.length === 0) {
     return (
@@ -26,7 +19,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
   return (
     <div>
       <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-muted)', marginBottom: 16, letterSpacing: '0.1em' }}>
-        SCORING: 3pts WIN · 1pt DRAW · 1pt ET/PENS LOSS · 0pts REG LOSS · FINAL +1 BONUS · 3RD PLACE EXCLUDED
+        SCORING: 3pts WIN · 1pt DRAW · 1pt ET/PENS LOSS · 0pts REG LOSS · FINAL +1 BONUS · TIEBREAKER: GD → GF
       </div>
       <div className="standings-list">
         {sorted.map((mgr, idx) => {
@@ -41,15 +34,23 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                   {(mgr.teams || []).map(tid => {
                     const team = getTeam(tid);
                     if (!team) return null;
+                    const pts = getTeamPts(tid);
                     return (
-                      <span key={tid} className={getPillClass(tid)}>
+                      <span key={tid} className={`team-pill ${pts === 0 ? '' : pts >= 6 ? 'deep' : 'alive'}`}>
                         {team.flag} {team.name}
-                        <span className="team-pill-pts">{getTeamPts(tid)}</span>
+                        <span className="team-pill-pts">{pts}</span>
                       </span>
                     );
                   })}
                 </div>
-                <span className="manager-total">{mgr.score}</span>
+                <div style={{ textAlign: 'right' }}>
+                  <div className="manager-total">{mgr.score}</div>
+                  {mgr.gd !== 0 && (
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                      GD {mgr.gd >= 0 ? '+' : ''}{mgr.gd}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {isExpanded && (
@@ -59,15 +60,17 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                       const team = getTeam(tid);
                       if (!team) return null;
                       const pts = getTeamPts(tid);
-                      const data = getTeamData(tid);
+                      const stats = getTeamStats(tid);
                       return (
                         <div key={tid} className="expand-team">
                           <span className="expand-team-flag">{team.flag}</span>
                           <div>
                             <div className="expand-team-name">{team.name}</div>
-                            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                              {data.played}GP · {data.wins}W {data.draws}D {data.losses}L
-                            </div>
+                            {stats.played > 0 && (
+                              <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                                {stats.played}GP · {stats.wins}W {stats.draws}D {stats.losses}L · GD {stats.gd >= 0 ? '+' : ''}{stats.gd}
+                              </div>
+                            )}
                           </div>
                           <span className="expand-team-pts">{pts}</span>
                         </div>
@@ -75,7 +78,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     })}
                   </div>
                   <div className="expand-meta">
-                    {mgr.score} pts total · Draft pick order: #{idx + 1}
+                    {mgr.score} pts · GD {mgr.gd >= 0 ? '+' : ''}{mgr.gd} · GF {mgr.gf} · Draft pick order: #{idx + 1}
                   </div>
                 </div>
               )}

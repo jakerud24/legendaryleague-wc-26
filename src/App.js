@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ref, onValue, set } from 'firebase/database';
 import { db } from './firebase';
 import { TEAMS } from './data';
-import { calculateTeamPoints } from './components/DraftRoom';
+import { calculateTeamStats } from './components/DraftRoom';
 import Standings from './components/Standings';
 import DraftRoom from './components/DraftRoom';
 import Bracket from './components/Bracket';
@@ -53,30 +53,33 @@ export default function App() {
     });
   };
 
-  const getTeamPts = (teamId) => calculateTeamPoints(matchResults[teamId]);
-
-  const getTeamData = (teamId) => {
-    const results = matchResults[teamId] || {};
-    let played = 0, wins = 0, draws = 0, losses = 0;
-    Object.values(results).forEach(r => {
-      if (!r) return;
-      played++;
-      if (r === 'W' || r === 'WF') wins++;
-      else if (r === 'D' || r === 'ET' || r === 'EF') draws++;
-      else if (r === 'L' || r === 'LF') losses++;
-    });
-    return { played, wins, draws, losses, points: calculateTeamPoints(results) };
-  };
+  const getTeamStats = (teamId) => calculateTeamStats(matchResults[teamId]);
+  const getTeamPts = (teamId) => getTeamStats(teamId).points;
 
   const getManagerScore = (mgr) => {
     if (!mgr?.teams) return 0;
     return mgr.teams.reduce((sum, tid) => sum + getTeamPts(tid), 0);
   };
 
+  const getManagerGD = (mgr) => {
+    if (!mgr?.teams) return 0;
+    return mgr.teams.reduce((sum, tid) => sum + getTeamStats(tid).gd, 0);
+  };
+
+  const getManagerGF = (mgr) => {
+    if (!mgr?.teams) return 0;
+    return mgr.teams.reduce((sum, tid) => sum + getTeamStats(tid).gf, 0);
+  };
+
   const getSortedManagers = () =>
     Object.entries(managers)
-      .map(([id, mgr]) => ({ id, ...mgr, score: getManagerScore(mgr) }))
-      .sort((a, b) => b.score - a.score);
+      .map(([id, mgr]) => ({
+        id, ...mgr,
+        score: getManagerScore(mgr),
+        gd: getManagerGD(mgr),
+        gf: getManagerGF(mgr)
+      }))
+      .sort((a, b) => b.score - a.score || b.gd - a.gd || b.gf - a.gf);
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--green-dark)', color: 'var(--gold)', fontFamily: 'var(--display)', fontSize: '2rem' }}>
@@ -110,28 +113,10 @@ export default function App() {
       </nav>
 
       <main className="app-main">
-        {activeTab === 'standings' && (
-          <Standings
-            managers={managers}
-            getSortedManagers={getSortedManagers}
-            getTeamPts={getTeamPts}
-            getTeamData={getTeamData}
-          />
-        )}
-        {activeTab === 'draft' && (
-          <DraftRoom
-            managers={managers}
-            setManagers={setManagers}
-            matchResults={matchResults}
-            setMatchResults={setMatchResults}
-          />
-        )}
-        {activeTab === 'bracket' && (
-          <Bracket managers={managers} matchResults={matchResults} getTeamPts={getTeamPts} />
-        )}
-        {activeTab === 'nations' && (
-          <Nations managers={managers} getTeamPts={getTeamPts} getTeamData={getTeamData} />
-        )}
+        {activeTab === 'standings' && <Standings managers={managers} getSortedManagers={getSortedManagers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
+        {activeTab === 'draft' && <DraftRoom managers={managers} setManagers={setManagers} matchResults={matchResults} setMatchResults={setMatchResults} />}
+        {activeTab === 'bracket' && <Bracket managers={managers} matchResults={matchResults} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
+        {activeTab === 'nations' && <Nations managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
       </main>
     </div>
   );

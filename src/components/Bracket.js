@@ -3,20 +3,11 @@ import { TEAMS } from '../data';
 
 const GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
-export default function Bracket({ managers, matchResults, getTeamPts }) {
+export default function Bracket({ managers, getTeamPts, getTeamStats }) {
   const allAssigned = Object.values(managers).reduce((acc, mgr) => {
     (mgr.teams || []).forEach(tid => { acc[tid] = mgr.name; });
     return acc;
   }, {});
-
-  const getTeamsByGroup = (group) => TEAMS.filter(t => t.group === group);
-
-  const getTeamResults = (teamId) => {
-    const results = matchResults[teamId] || {};
-    return Object.values(results).filter(Boolean);
-  };
-
-  const hasPlayed = (teamId) => getTeamResults(teamId).length > 0;
 
   return (
     <div>
@@ -26,18 +17,18 @@ export default function Bracket({ managers, matchResults, getTeamPts }) {
           {GROUPS.map(group => (
             <div key={group} className="group-card">
               <div className="group-card-header">GROUP {group}</div>
-              {getTeamsByGroup(group).map(team => (
-                <div key={team.id} className={`group-team-row ${!hasPlayed(team.id) ? '' : ''}`}>
-                  <span className="group-team-flag">{team.flag}</span>
-                  <span className="group-team-name">{team.name}</span>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--gold)' }}>
-                    {getTeamPts(team.id) > 0 ? `${getTeamPts(team.id)}pts` : ''}
-                  </span>
-                  {allAssigned[team.id] && (
-                    <span className="group-team-owner">{allAssigned[team.id]}</span>
-                  )}
-                </div>
-              ))}
+              {TEAMS.filter(t => t.group === group).map(team => {
+                const stats = getTeamStats(team.id);
+                const pts = getTeamPts(team.id);
+                return (
+                  <div key={team.id} className="group-team-row">
+                    <span className="group-team-flag">{team.flag}</span>
+                    <span className="group-team-name">{team.name}</span>
+                    {pts > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--gold)' }}>{pts}pts</span>}
+                    {allAssigned[team.id] && <span className="group-team-owner">{allAssigned[team.id]}</span>}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
