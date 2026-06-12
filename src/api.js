@@ -1,9 +1,5 @@
 import { TEAMS } from './data';
 
-const BASE_URL = 'https://v3.football.api-sports.io';
-const API_KEY = process.env.REACT_APP_API_FOOTBALL_KEY;
-const LEAGUE_ID = 1;
-const SEASON = 2026;
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 function getCached(key) {
@@ -26,9 +22,10 @@ async function apiFetch(endpoint) {
   const cacheKey = `apifootball_${endpoint}`;
   const cached = getCached(cacheKey);
   if (cached) return cached;
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
-    headers: { 'x-apisports-key': API_KEY },
-  });
+
+  // Call our Vercel proxy instead of API directly (avoids CORS)
+  const url = `/api/fixtures?endpoint=${encodeURIComponent(endpoint)}`;
+  const res = await fetch(url);
   const json = await res.json();
   setCache(cacheKey, json);
   return json;
@@ -57,19 +54,14 @@ export function mapApiNameToId(apiName) {
   return API_NAME_MAP[apiName] || null;
 }
 
-// Determine points for a team in a single fixture using per-game scoring
-// 3 = win, 1 = draw or ET/pens loss, 0 = regulation loss
-// Final match gets +1 bonus on all outcomes
-// 3rd place match scores 0 (excluded)
 function getMatchPoints(fixture, teamId) {
   const status = fixture.fixture.status.short;
-  if (!['FT', 'AET', 'PEN'].includes(status)) return null; // not finished
+  if (!['FT', 'AET', 'PEN'].includes(status)) return null;
 
   const round = fixture.league.round || '';
   const is3rdPlace = round.toLowerCase().includes('3rd') || round.toLowerCase().includes('third');
   const isFinal = round.toLowerCase().includes('final') && !is3rdPlace;
 
-  // Skip 3rd place game
   if (is3rdPlace) return null;
 
   const homeId = mapApiNameToId(fixture.teams.home.name);
@@ -78,35 +70,28 @@ function getMatchPoints(fixture, teamId) {
   const isAway = awayId === teamId;
   if (!isHome && !isAway) return null;
 
-  const homeWon = fixture.teams.home.winner;
-  const awayWon = fixture.teams.away.winner;
-  const teamWon = isHome ? homeWon : awayWon;
-  const teamLost = isHome ? awayWon : homeWon;
-
+  const teamWon = isHome ? fixture.teams.home.winner : fixture.teams.away.winner;
+  const teamLost = isHome ? fixture.teams.away.winner : fixture.teams.home.winner;
   const bonus = isFinal ? 1 : 0;
 
   if (status === 'AET' || status === 'PEN') {
-    // ET or pens: winner gets 3+bonus, loser gets 1+bonus
     return teamWon ? 3 + bonus : 1 + bonus;
   }
-
-  // FT (regulation)
   if (teamWon) return 3 + bonus;
   if (teamLost) return 0 + bonus;
   return 1 + bonus; // draw
 }
 
 export async function fetchFixtures() {
-  const json = await apiFetch(`/fixtures?league=${LEAGUE_ID}&season=${SEASON}`);
+  const json = await apiFetch(`fixtures?league=1&season=2026`);
   return json?.response || [];
 }
 
 export async function fetchNextMatch() {
-  const json = await apiFetch(`/fixtures?league=${LEAGUE_ID}&season=${SEASON}&next=1`);
+  const json = await apiFetch(`fixtures?league=1&season=2026&next=1`);
   return json?.response?.[0] || null;
 }
 
-// Returns { teamId: { points, played, wins, draws, losses, gf, ga, gd } }
 export async function fetchTeamPoints() {
   try {
     const fixtures = await fetchFixtures();
@@ -119,14 +104,14 @@ export async function fetchTeamPoints() {
       const status = f.fixture.status.short;
       if (!['FT', 'AET', 'PEN'].includes(status)) return;
 
+      const round = f.league.round || '';
+      const is3rdPlace = round.toLowerCase().includes('3rd') || round.toLowerCase().includes('third');
+      if (is3rdPlace) return;
+
       const homeId = mapApiNameToId(f.teams.home.name);
       const awayId = mapApiNameToId(f.teams.away.name);
       const homeG = f.goals.home ?? 0;
       const awayG = f.goals.away ?? 0;
-
-      const round = f.league.round || '';
-      const is3rdPlace = round.toLowerCase().includes('3rd') || round.toLowerCase().includes('third');
-      if (is3rdPlace) return;
 
       [homeId, awayId].forEach(tid => {
         if (!tid || !teamData[tid]) return;
