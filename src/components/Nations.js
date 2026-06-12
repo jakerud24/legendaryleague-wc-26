@@ -1,7 +1,7 @@
 import React from 'react';
 import { TEAMS, CONFEDERATIONS } from '../data';
 
-export default function Nations({ managers, teamPoints, getTeamPts }) {
+export default function Nations({ managers, getTeamPts, getTeamData }) {
   const allAssigned = Object.values(managers).reduce((acc, mgr) => {
     (mgr.teams || []).forEach(tid => { acc[tid] = mgr.name; });
     return acc;
@@ -19,7 +19,7 @@ export default function Nations({ managers, teamPoints, getTeamPts }) {
               {teams.map(team => {
                 const owner = allAssigned[team.id];
                 const pts = getTeamPts(team.id);
-                const data = teamPoints[team.id] || {};
+                const data = getTeamData(team.id);
                 return (
                   <div key={team.id} className={`nation-card ${owner ? 'owned' : 'unowned'}`}>
                     <div className="nation-flag">{team.flag}</div>
@@ -27,7 +27,7 @@ export default function Nations({ managers, teamPoints, getTeamPts }) {
                     <div className="nation-meta">GRP {team.group}</div>
                     {data.played > 0 && (
                       <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>
-                        {data.played}GP · GD {data.gd >= 0 ? '+' : ''}{data.gd}
+                        {data.played}GP · {data.wins}W {data.draws}D {data.losses}L
                       </div>
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { TEAMS } from '../data';
 
-export default function Standings({ managers, getSortedManagers, getTeamPts, teamPoints }) {
+export default function Standings({ managers, getSortedManagers, getTeamPts, getTeamData }) {
   const [expanded, setExpanded] = useState(null);
   const sorted = getSortedManagers();
   const getTeam = (id) => TEAMS.find(t => t.id === id);
 
   const getPillClass = (teamId) => {
     const pts = getTeamPts(teamId);
-    if (pts === 0) return 'team-pill eliminated';
+    if (pts === 0) return 'team-pill';
     if (pts >= 6) return 'team-pill deep';
     return 'team-pill alive';
   };
@@ -32,7 +32,8 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, tea
         {sorted.map((mgr, idx) => {
           const isExpanded = expanded === mgr.id;
           return (
-            <div key={mgr.id} className={`manager-card ${idx === 0 ? 'leader' : ''}`} onClick={() => setExpanded(isExpanded ? null : mgr.id)}>
+            <div key={mgr.id} className={`manager-card ${idx === 0 && mgr.score > 0 ? 'leader' : ''}`}
+              onClick={() => setExpanded(isExpanded ? null : mgr.id)}>
               <div className="manager-card-header">
                 <span className={`pick-number ${idx < 3 ? 'top' : ''}`}>#{idx + 1}</span>
                 <span className="manager-name">{mgr.name}</span>
@@ -50,6 +51,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, tea
                 </div>
                 <span className="manager-total">{mgr.score}</span>
               </div>
+
               {isExpanded && (
                 <div className="manager-expand">
                   <div className="expand-row">
@@ -57,17 +59,14 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, tea
                       const team = getTeam(tid);
                       if (!team) return null;
                       const pts = getTeamPts(tid);
-                      const data = teamPoints[tid] || {};
+                      const data = getTeamData(tid);
                       return (
                         <div key={tid} className="expand-team">
                           <span className="expand-team-flag">{team.flag}</span>
                           <div>
                             <div className="expand-team-name">{team.name}</div>
-                            <div className="expand-team-round" style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>
-                              {data.played || 0}GP · {data.wins || 0}W {data.draws || 0}D {data.losses || 0}L
-                            </div>
-                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                              GD: {(data.gd || 0) >= 0 ? '+' : ''}{data.gd || 0}
+                            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                              {data.played}GP · {data.wins}W {data.draws}D {data.losses}L
                             </div>
                           </div>
                           <span className="expand-team-pts">{pts}</span>
@@ -76,7 +75,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, tea
                     })}
                   </div>
                   <div className="expand-meta">
-                    GD: {mgr.gd >= 0 ? '+' : ''}{mgr.gd} · {mgr.score} pts · Draft pick order: #{idx + 1}
+                    {mgr.score} pts total · Draft pick order: #{idx + 1}
                   </div>
                 </div>
               )}
