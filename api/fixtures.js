@@ -2,18 +2,11 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
 
-  const API_KEY = process.env.REACT_APP_API_FOOTBALL_KEY;
-  const { endpoint } = req.query;
-
-  if (!endpoint) {
-    return res.status(400).json({ error: 'Missing endpoint param' });
-  }
-
   try {
-    const url = `https://v3.football.api-sports.io/${endpoint}`;
+    const url = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?limit=200&dates=20260611-20260719';
     const response = await fetch(url, {
       headers: {
-        'x-apisports-key': API_KEY,
+        'User-Agent': 'Mozilla/5.0 (compatible; LegendaryLeague/1.0)',
       },
     });
     const data = await response.json();
