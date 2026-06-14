@@ -7,6 +7,7 @@ import Standings from './components/Standings';
 import DraftRoom from './components/DraftRoom';
 import Bracket from './components/Bracket';
 import Nations from './components/Nations';
+import MatchTicker from './components/MatchTicker';
 import './App.css';
 
 const TABS = [
@@ -50,6 +51,7 @@ export default function App() {
   const [managers, setManagersState] = useState({});
   const [matchResults, setMatchResultsState] = useState({});
   const [espnStats, setEspnStats] = useState({});
+  const [espnData, setEspnData] = useState(null);
   const [nextMatch, setNextMatch] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [isLive, setIsLive] = useState(false);
@@ -77,22 +79,19 @@ export default function App() {
       const stats = parseESPNResults(data);
       const live = isAnyGameLive(data);
       const next = getNextMatchInfo(data);
+      setEspnData(data);
       setEspnStats(stats);
       setIsLive(live);
       setNextMatch(next);
       setLastRefresh(new Date());
       setEspnError(false);
     } catch (e) {
-      console.error('ESPN fetch failed', e);
       setEspnError(true);
     }
   }, []);
 
-  useEffect(() => {
-    loadESPN();
-  }, [loadESPN]);
+  useEffect(() => { loadESPN(); }, [loadESPN]);
 
-  // Auto-refresh: 30s when live, 5min otherwise
   useEffect(() => {
     const interval = setInterval(() => loadESPN(), isLive ? 30000 : 300000);
     return () => clearInterval(interval);
@@ -114,43 +113,21 @@ export default function App() {
     });
   };
 
-  // Merge ESPN auto scores with any manual overrides
   const getTeamStats = (teamId) => {
-    const espn = espnStats[teamId];
     const manual = matchResults[teamId];
-    // If manual results exist for this team, use manual. Otherwise use ESPN.
-    if (manual && Object.keys(manual).length > 0) {
-      return calculateTeamStats(manual);
-    }
-    if (espn) return espn;
-    return { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0 };
+    if (manual && Object.keys(manual).length > 0) return calculateTeamStats(manual);
+    return espnStats[teamId] || { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0 };
   };
 
   const getTeamPts = (teamId) => getTeamStats(teamId).points;
 
-  const getManagerScore = (mgr) => {
-    if (!mgr?.teams) return 0;
-    return mgr.teams.reduce((sum, tid) => sum + getTeamPts(tid), 0);
-  };
-
-  const getManagerGD = (mgr) => {
-    if (!mgr?.teams) return 0;
-    return mgr.teams.reduce((sum, tid) => sum + getTeamStats(tid).gd, 0);
-  };
-
-  const getManagerGF = (mgr) => {
-    if (!mgr?.teams) return 0;
-    return mgr.teams.reduce((sum, tid) => sum + getTeamStats(tid).gf, 0);
-  };
+  const getManagerScore = (mgr) => mgr?.teams?.reduce((s, tid) => s + getTeamPts(tid), 0) || 0;
+  const getManagerGD = (mgr) => mgr?.teams?.reduce((s, tid) => s + getTeamStats(tid).gd, 0) || 0;
+  const getManagerGF = (mgr) => mgr?.teams?.reduce((s, tid) => s + getTeamStats(tid).gf, 0) || 0;
 
   const getSortedManagers = () =>
     Object.entries(managers)
-      .map(([id, mgr]) => ({
-        id, ...mgr,
-        score: getManagerScore(mgr),
-        gd: getManagerGD(mgr),
-        gf: getManagerGF(mgr),
-      }))
+      .map(([id, mgr]) => ({ id, ...mgr, score: getManagerScore(mgr), gd: getManagerGD(mgr), gf: getManagerGF(mgr) }))
       .sort((a, b) => b.score - a.score || b.gd - a.gd || b.gf - a.gf);
 
   if (loading) return (
@@ -190,6 +167,8 @@ export default function App() {
         </div>
       </header>
 
+      <MatchTicker espnData={espnData} managers={managers} />
+
       <nav className="tab-nav">
         {TABS.map(tab => (
           <button key={tab.id} className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
@@ -199,7 +178,7 @@ export default function App() {
       </nav>
 
       <main className="app-main">
-        {activeTab === 'standings' && <Standings managers={managers} getSortedManagers={getSortedManagers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} espnError={espnError} />}
+        {activeTab === 'standings' && <Standings managers={managers} getSortedManagers={getSortedManagers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
         {activeTab === 'draft' && <DraftRoom managers={managers} setManagers={setManagers} matchResults={matchResults} setMatchResults={setMatchResults} />}
         {activeTab === 'bracket' && <Bracket managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
         {activeTab === 'nations' && <Nations managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}

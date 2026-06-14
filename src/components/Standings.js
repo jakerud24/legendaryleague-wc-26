@@ -6,6 +6,11 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
   const sorted = getSortedManagers();
   const getTeam = (id) => TEAMS.find(t => t.id === id);
 
+  const getManagerGP = (mgr) => {
+    if (!mgr?.teams) return 0;
+    return mgr.teams.reduce((sum, tid) => sum + (getTeamStats(tid).played || 0), 0);
+  };
+
   if (sorted.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
@@ -24,20 +29,28 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
       <div className="standings-list">
         {sorted.map((mgr, idx) => {
           const isExpanded = expanded === mgr.id;
+          const gp = getManagerGP(mgr);
           return (
             <div key={mgr.id} className={`manager-card ${idx === 0 && mgr.score > 0 ? 'leader' : ''}`}
               onClick={() => setExpanded(isExpanded ? null : mgr.id)}>
               <div className="manager-card-header">
                 <span className={`pick-number ${idx < 3 ? 'top' : ''}`}>#{idx + 1}</span>
-                <span className="manager-name">{mgr.name}</span>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span className="manager-name">{mgr.name}</span>
+                  {gp > 0 && (
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>{gp} GP</span>
+                  )}
+                </div>
                 <div className="manager-teams-inline">
                   {(mgr.teams || []).map(tid => {
                     const team = getTeam(tid);
                     if (!team) return null;
                     const pts = getTeamPts(tid);
+                    const stats = getTeamStats(tid);
                     return (
                       <span key={tid} className={`team-pill ${pts === 0 ? '' : pts >= 6 ? 'deep' : 'alive'}`}>
                         {team.flag} {team.name}
+                        {stats.played > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', marginLeft: 2 }}>{stats.played}GP</span>}
                         <span className="team-pill-pts">{pts}</span>
                       </span>
                     );
@@ -78,7 +91,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     })}
                   </div>
                   <div className="expand-meta">
-                    {mgr.score} pts · GD {mgr.gd >= 0 ? '+' : ''}{mgr.gd} · GF {mgr.gf} · Draft pick order: #{idx + 1}
+                    {mgr.score} pts · {gp} GP · GD {mgr.gd >= 0 ? '+' : ''}{mgr.gd} · GF {mgr.gf} · Draft pick order: #{idx + 1}
                   </div>
                 </div>
               )}
