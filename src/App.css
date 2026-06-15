@@ -615,6 +615,10 @@ body {
     padding: 3px 7px;
   }
 
+  .team-pill-name {
+    display: none;
+  }
+
   .manager-total {
     margin-left: auto;
     order: 2;

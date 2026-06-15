@@ -49,7 +49,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     const stats = getTeamStats(tid);
                     return (
                       <span key={tid} className={`team-pill ${pts === 0 ? '' : pts >= 6 ? 'deep' : 'alive'}`}>
-                        {team.flag} {team.name}
+                        {team.flag}<span className="team-pill-name"> {team.name}</span>
                         {stats.played > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', marginLeft: 2 }}>{stats.played}GP</span>}
                         <span className="team-pill-pts">{pts}</span>
                       </span>
