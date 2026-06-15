@@ -593,6 +593,30 @@ body {
   .app-main { padding: 12px; }
   .tab-nav { padding: 10px 12px; }
   .app-header { padding: 16px 12px 12px; }
-  .manager-teams-inline { display: none; }
   .draft-grid { grid-template-columns: 1fr; }
+
+  .manager-card-header {
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .manager-teams-inline {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    order: 3;
+    gap: 4px;
+    margin-top: 2px;
+  }
+
+  .team-pill {
+    font-size: 11px;
+    padding: 3px 7px;
+  }
+
+  .manager-total {
+    margin-left: auto;
+    order: 2;
+  }
 }
