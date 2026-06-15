@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ref, onValue, set } from 'firebase/database';
 import { db } from './firebase';
 import { fetchESPNData, parseESPNResults, isAnyGameLive, getNextMatchInfo, clearESPNCache } from './espn';
-import { calculateTeamStats } from './components/DraftRoom';
 import Standings from './components/Standings';
 import DraftRoom from './components/DraftRoom';
 import Bracket from './components/Bracket';
@@ -49,7 +48,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('standings');
   const [loading, setLoading] = useState(true);
   const [managers, setManagersState] = useState({});
-  const [matchResults, setMatchResultsState] = useState({});
   const [espnStats, setEspnStats] = useState({});
   const [espnData, setEspnData] = useState(null);
   const [nextMatch, setNextMatch] = useState(null);
@@ -61,13 +59,6 @@ export default function App() {
     const unsub = onValue(ref(db, 'managers'), snap => {
       setManagersState(snap.val() || {});
       setLoading(false);
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    const unsub = onValue(ref(db, 'matchResults'), snap => {
-      setMatchResultsState(snap.val() || {});
     });
     return () => unsub();
   }, []);
@@ -105,19 +96,9 @@ export default function App() {
     });
   };
 
-  const setMatchResults = (updater) => {
-    setMatchResultsState(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      set(ref(db, 'matchResults'), next);
-      return next;
-    });
-  };
-
-  const getTeamStats = (teamId) => {
-    const manual = matchResults[teamId];
-    if (manual && Object.keys(manual).length > 0) return calculateTeamStats(manual);
-    return espnStats[teamId] || { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0 };
-  };
+  // Pure ESPN — no manual override
+  const getTeamStats = (teamId) =>
+    espnStats[teamId] || { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0 };
 
   const getTeamPts = (teamId) => getTeamStats(teamId).points;
   const getManagerScore = (mgr) => mgr?.teams?.reduce((s, tid) => s + getTeamPts(tid), 0) || 0;
@@ -180,7 +161,7 @@ export default function App() {
         {activeTab === 'standings' && <Standings managers={managers} getSortedManagers={getSortedManagers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
         {activeTab === 'bracket' && <Bracket managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
         {activeTab === 'nations' && <Nations managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
-        {activeTab === 'draft' && <DraftRoom managers={managers} setManagers={setManagers} matchResults={matchResults} setMatchResults={setMatchResults} />}
+        {activeTab === 'draft' && <DraftRoom managers={managers} setManagers={setManagers} matchResults={{}} setMatchResults={() => {}} />}
       </main>
     </div>
   );
