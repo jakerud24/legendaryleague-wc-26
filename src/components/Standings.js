@@ -58,11 +58,9 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div className="manager-total">{mgr.score}</div>
-                  {mgr.gd !== 0 && (
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                      GD {mgr.gd >= 0 ? '+' : ''}{mgr.gd}
-                    </div>
-                  )}
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                    GD {mgr.gd >= 0 ? '+' : ''}{mgr.gd}
+                  </div>
                 </div>
               </div>
 
