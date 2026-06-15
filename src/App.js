@@ -12,7 +12,7 @@ import './App.css';
 const TABS = [
   { id: 'standings', label: '🏆 Standings' },
   { id: 'bracket', label: '🗂 Bracket' },
-  { id: 'nations', label: '🌍 Nations' },
+  { id: 'nations', label: '🌍 Team Details' },
   { id: 'draft', label: '📋 Draft Room' },
 ];
 
@@ -128,7 +128,7 @@ export default function App() {
         <div className="header-content">
           <div className="header-title">
             <h1>THE LEGENDARY LEAGUE</h1>
-            <p className="header-subtitle">FIFA WORLD CUP 2026 · DRAFT ORDER TRACKER</p>
+            <p className="header-subtitle">FIFA WORLD CUP 2026 · GAMBLING GUYS</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <Countdown nextMatch={nextMatch} />
