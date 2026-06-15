@@ -12,9 +12,9 @@ import './App.css';
 
 const TABS = [
   { id: 'standings', label: '🏆 Standings' },
-  { id: 'draft', label: '📋 Draft Room' },
   { id: 'bracket', label: '🗂 Bracket' },
   { id: 'nations', label: '🌍 Nations' },
+  { id: 'draft', label: '📋 Draft Room' },
 ];
 
 function Countdown({ nextMatch }) {
@@ -120,7 +120,6 @@ export default function App() {
   };
 
   const getTeamPts = (teamId) => getTeamStats(teamId).points;
-
   const getManagerScore = (mgr) => mgr?.teams?.reduce((s, tid) => s + getTeamPts(tid), 0) || 0;
   const getManagerGD = (mgr) => mgr?.teams?.reduce((s, tid) => s + getTeamStats(tid).gd, 0) || 0;
   const getManagerGF = (mgr) => mgr?.teams?.reduce((s, tid) => s + getTeamStats(tid).gf, 0) || 0;
@@ -179,9 +178,9 @@ export default function App() {
 
       <main className="app-main">
         {activeTab === 'standings' && <Standings managers={managers} getSortedManagers={getSortedManagers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
-        {activeTab === 'draft' && <DraftRoom managers={managers} setManagers={setManagers} matchResults={matchResults} setMatchResults={setMatchResults} />}
         {activeTab === 'bracket' && <Bracket managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
         {activeTab === 'nations' && <Nations managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
+        {activeTab === 'draft' && <DraftRoom managers={managers} setManagers={setManagers} matchResults={matchResults} setMatchResults={setMatchResults} />}
       </main>
     </div>
   );
