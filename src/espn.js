@@ -89,7 +89,7 @@ export function parseESPNResults(espnData) {
 
   espnData.events.forEach(event => {
     const status = event.status?.type?.state; // 'pre', 'in', 'post'
-    if (status !== 'post') return; // only finished games
+    if (status !== 'post' && status !== 'in') return; // include live + finished games
 
     const competition = event.competitions?.[0];
     if (!competition) return;
@@ -113,6 +113,7 @@ export function parseESPNResults(espnData) {
     const awayId = mapName(away.team?.displayName || away.team?.name);
     const homeScore = parseInt(home.score) || 0;
     const awayScore = parseInt(away.score) || 0;
+    const isLiveMatch = status === 'in';
 
     const wentET = competition.status?.type?.shortDetail?.includes('AET') ||
                    competition.status?.type?.shortDetail?.includes('Pen') ||
@@ -123,11 +124,29 @@ export function parseESPNResults(espnData) {
 
     [homeId, awayId].forEach(teamId => {
       if (!teamId) return;
-      if (!teamStats[teamId]) teamStats[teamId] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0 };
+      if (!teamStats[teamId]) teamStats[teamId] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
 
       const isHome = homeId === teamId;
       const gf = isHome ? homeScore : awayScore;
       const ga = isHome ? awayScore : homeScore;
+
+      if (isLiveMatch) {
+        // Provisional live stats — don't increment played/W/L permanently, just show current state
+        teamStats[teamId].live = true;
+        teamStats[teamId].liveGf = gf;
+        teamStats[teamId].liveGa = ga;
+        const provisionalPts = gf > ga ? 3 + bonus : gf < ga ? 0 + bonus : 1 + bonus;
+        teamStats[teamId].points += provisionalPts;
+        teamStats[teamId].played += 1;
+        teamStats[teamId].gf += gf;
+        teamStats[teamId].ga += ga;
+        teamStats[teamId].gd += gf - ga;
+        if (gf > ga) teamStats[teamId].wins++;
+        else if (gf < ga) teamStats[teamId].losses++;
+        else teamStats[teamId].draws++;
+        return;
+      }
+
       const won = isHome ? home.winner : away.winner;
       const lost = isHome ? away.winner : home.winner;
 

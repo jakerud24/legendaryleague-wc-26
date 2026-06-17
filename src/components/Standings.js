@@ -11,6 +11,8 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
     return mgr.teams.reduce((sum, tid) => sum + (getTeamStats(tid).played || 0), 0);
   };
 
+  const managerHasLive = (mgr) => (mgr.teams || []).some(tid => getTeamStats(tid).live);
+
   if (sorted.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
@@ -30,13 +32,17 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
         {sorted.map((mgr, idx) => {
           const isExpanded = expanded === mgr.id;
           const gp = getManagerGP(mgr);
+          const isLive = managerHasLive(mgr);
           return (
-            <div key={mgr.id} className={`manager-card ${idx === 0 && mgr.score > 0 ? 'leader' : ''}`}
+            <div key={mgr.id} className={`manager-card ${idx === 0 && mgr.score > 0 ? 'leader' : ''} ${isLive ? 'live-card' : ''}`}
               onClick={() => setExpanded(isExpanded ? null : mgr.id)}>
               <div className="manager-card-header">
                 <span className={`pick-number ${idx < 3 ? 'top' : ''}`}>#{idx + 1}</span>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span className="manager-name">{mgr.name}</span>
+                  <span className="manager-name">
+                    {mgr.name}
+                    {isLive && <span className="live-dot" />}
+                  </span>
                   {gp > 0 && (
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>{gp} GP</span>
                   )}
@@ -48,8 +54,9 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     const pts = getTeamPts(tid);
                     const stats = getTeamStats(tid);
                     return (
-                      <span key={tid} className={`team-pill ${pts === 0 ? '' : pts >= 6 ? 'deep' : 'alive'}`}>
+                      <span key={tid} className={`team-pill ${pts === 0 ? '' : pts >= 6 ? 'deep' : 'alive'} ${stats.live ? 'pill-live' : ''}`}>
                         {team.flag}<span className="team-pill-name"> {team.name}</span>
+                        {stats.live && <span className="pill-live-badge">LIVE</span>}
                         {stats.played > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', marginLeft: 2 }}>{stats.played}GP</span>}
                         <span className="team-pill-pts">{pts}</span>
                       </span>
@@ -73,10 +80,12 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                       const pts = getTeamPts(tid);
                       const stats = getTeamStats(tid);
                       return (
-                        <div key={tid} className="expand-team">
+                        <div key={tid} className={`expand-team ${stats.live ? 'pill-live' : ''}`}>
                           <span className="expand-team-flag">{team.flag}</span>
                           <div>
-                            <div className="expand-team-name">{team.name}</div>
+                            <div className="expand-team-name">
+                              {team.name}{stats.live && <span className="live-dot" />}
+                            </div>
                             {stats.played > 0 && (
                               <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
                                 {stats.played}GP · {stats.wins}W {stats.draws}D {stats.losses}L · GD {stats.gd >= 0 ? '+' : ''}{stats.gd}

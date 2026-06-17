@@ -219,6 +219,55 @@ body {
 .manager-card:hover { border-color: var(--gold); }
 .manager-card.leader { border-color: var(--gold); }
 
+.manager-card.live-card {
+  border-color: #e05252;
+  box-shadow: 0 0 0 1px rgba(224, 82, 82, 0.3), 0 0 14px rgba(224, 82, 82, 0.25);
+  animation: liveGlow 2s ease-in-out infinite;
+}
+
+@keyframes liveGlow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(224, 82, 82, 0.3), 0 0 14px rgba(224, 82, 82, 0.18); }
+  50% { box-shadow: 0 0 0 1px rgba(224, 82, 82, 0.5), 0 0 20px rgba(224, 82, 82, 0.35); }
+}
+
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e05252;
+  margin-left: 6px;
+  vertical-align: middle;
+  animation: livePulse 1.4s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.team-pill.pill-live {
+  border-color: #e05252;
+  background: rgba(224, 82, 82, 0.12);
+}
+
+.pill-live-badge {
+  background: #e05252;
+  color: #fff;
+  font-size: 8px;
+  font-family: var(--mono);
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 4px;
+  letter-spacing: 0.05em;
+}
+
+.expand-team.pill-live {
+  border-color: #e05252;
+  background: rgba(224, 82, 82, 0.08);
+}
+
 .manager-card-header {
   display: flex;
   align-items: center;
