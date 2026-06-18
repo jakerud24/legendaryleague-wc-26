@@ -218,7 +218,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     })}
                   </div>
                   <div className="expand-meta">
-                    {mgr.score} pts · {gp} GP · GD {mgr.gd >= 0 ? '+' : ''}{mgr.gd} · GF {mgr.gf} · Draft pick order: #{idx + 1}
+                    {mgr.score} pts · {gp} GP · GD {mgr.gd >= 0 ? '+' : ''}{mgr.gd} · GF {mgr.gf}
                   </div>
                 </div>
               )}
