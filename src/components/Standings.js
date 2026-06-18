@@ -16,21 +16,46 @@ const ESPN_NAME_MAP_REVERSE = {
   england: 'England', croatia: 'Croatia', ghana: 'Ghana', panama: 'Panama',
 };
 
+// Some ESPN events use alternate name strings for the same team across different fixtures.
+// This is a defensive list of all known aliases per team ID, checked in addition to the primary name above.
+const ESPN_NAME_ALIASES = {
+  dr_congo: ['DR Congo', 'Congo DR', 'Democratic Republic of Congo'],
+  bosnia: ['Bosnia-Herzegovina', 'Bosnia and Herzegovina'],
+  turkey: ['Türkiye', 'Turkey'],
+  usa: ['United States', 'USA'],
+  curacao: ['Curaçao', 'Curacao'],
+  ivory_coast: ['Ivory Coast', "Côte d'Ivoire"],
+};
+
+function getAllNamesForTeam(teamId) {
+  return ESPN_NAME_ALIASES[teamId] || [ESPN_NAME_MAP_REVERSE[teamId]];
+}
+
+function getTeamIdForEspnName(espnName) {
+  for (const [id, primary] of Object.entries(ESPN_NAME_MAP_REVERSE)) {
+    if (primary === espnName) return id;
+  }
+  for (const [id, aliases] of Object.entries(ESPN_NAME_ALIASES)) {
+    if (aliases.includes(espnName)) return id;
+  }
+  return null;
+}
+
 const DISPLAY_NAME_OVERRIDE = {
   bosnia: 'Bosnia',
 };
 
 function getNextMatchForTeam(teamId, espnData, ownerMap) {
   if (!espnData?.events) return null;
-  const espnName = ESPN_NAME_MAP_REVERSE[teamId];
-  if (!espnName) return null;
+  const myNames = getAllNamesForTeam(teamId);
+  if (!myNames || myNames.length === 0) return null;
 
   const upcoming = espnData.events.filter(e => {
     const state = e.status?.type?.state;
     if (state !== 'pre' && state !== 'in') return false;
     const comp = e.competitions?.[0];
     const competitors = comp?.competitors || [];
-    return competitors.some(c => (c.team?.displayName || c.team?.name) === espnName);
+    return competitors.some(c => myNames.includes(c.team?.displayName || c.team?.name));
   });
 
   if (upcoming.length === 0) return null;
@@ -38,14 +63,12 @@ function getNextMatchForTeam(teamId, espnData, ownerMap) {
   const next = upcoming[0];
   const comp = next.competitions?.[0];
   const competitors = comp?.competitors || [];
-  const opponent = competitors.find(c => (c.team?.displayName || c.team?.name) !== espnName);
+  const opponent = competitors.find(c => !myNames.includes(c.team?.displayName || c.team?.name));
   if (!opponent) return null;
 
   const oppName = opponent.team?.displayName || opponent.team?.name;
-  const oppTeam = TEAMS.find(t => {
-    const mappedName = ESPN_NAME_MAP_REVERSE[t.id];
-    return mappedName === oppName;
-  });
+  const oppTeamId = getTeamIdForEspnName(oppName);
+  const oppTeam = oppTeamId ? TEAMS.find(t => t.id === oppTeamId) : null;
   const oppOwner = oppTeam ? ownerMap[oppTeam.id] : null;
   const isLive = next.status?.type?.state === 'in';
 
