@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TEAMS } from '../data';
+import { getGoalsForEvent } from '../espn';
 
 const ESPN_NAME_MAP_REVERSE = {
   mexico: 'Mexico', south_africa: 'South Africa', south_korea: 'South Korea',
@@ -81,6 +82,49 @@ function getNextMatchForTeam(teamId, espnData, ownerMap) {
   };
 }
 
+function getLastMatchForTeam(teamId, espnData, ownerMap) {
+  if (!espnData?.events) return null;
+  const myNames = getAllNamesForTeam(teamId);
+  if (!myNames || myNames.length === 0) return null;
+
+  const finished = espnData.events.filter(e => {
+    const state = e.status?.type?.state;
+    if (state !== 'post') return false;
+    const comp = e.competitions?.[0];
+    const competitors = comp?.competitors || [];
+    return competitors.some(c => myNames.includes(c.team?.displayName || c.team?.name));
+  });
+
+  if (finished.length === 0) return null;
+  finished.sort((a, b) => new Date(b.date) - new Date(a.date));
+  const last = finished[0];
+  const comp = last.competitions?.[0];
+  const competitors = comp?.competitors || [];
+  const me = competitors.find(c => myNames.includes(c.team?.displayName || c.team?.name));
+  const opponent = competitors.find(c => !myNames.includes(c.team?.displayName || c.team?.name));
+  if (!opponent || !me) return null;
+
+  const oppName = opponent.team?.displayName || opponent.team?.name;
+  const oppTeamId = getTeamIdForEspnName(oppName);
+  const oppTeam = oppTeamId ? TEAMS.find(t => t.id === oppTeamId) : null;
+  const oppOwner = oppTeam ? ownerMap[oppTeam.id] : null;
+
+  const myScore = parseInt(me.score) || 0;
+  const oppScore = parseInt(opponent.score) || 0;
+  const goals = getGoalsForEvent(last);
+
+  return {
+    date: last.date,
+    oppFlag: oppTeam?.flag || '🏳',
+    oppName: oppTeam ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name) : oppName,
+    oppOwner,
+    myScore,
+    oppScore,
+    goals,
+    myTeamId: me.team?.id,
+  };
+}
+
 function formatPST(dateStr) {
   const d = new Date(dateStr);
   const datePart = d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', timeZone: 'America/Los_Angeles' });
@@ -90,6 +134,7 @@ function formatPST(dateStr) {
 
 export default function Standings({ managers, getSortedManagers, getTeamPts, getTeamStats, espnData }) {
   const [expanded, setExpanded] = useState(null);
+  const [expandedLastMatch, setExpandedLastMatch] = useState(null);
   const sorted = getSortedManagers();
   const getTeam = (id) => TEAMS.find(t => t.id === id);
 
@@ -174,6 +219,9 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                       const stats = getTeamStats(tid);
                       const displayName = DISPLAY_NAME_OVERRIDE[tid] || team.name;
                       const nextMatch = getNextMatchForTeam(tid, espnData, ownerMap);
+                      const lastMatch = getLastMatchForTeam(tid, espnData, ownerMap);
+                      const lastMatchKey = `${tid}-last`;
+                      const isLastExpanded = expandedLastMatch === lastMatchKey;
                       return (
                         <div key={tid} className={`expand-team ${stats.live ? 'pill-live' : ''}`} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -190,6 +238,47 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                             </div>
                             <span className="expand-team-pts">{pts}</span>
                           </div>
+                          {lastMatch && (
+                            <div
+                              onClick={(e) => { e.stopPropagation(); setExpandedLastMatch(isLastExpanded ? null : lastMatchKey); }}
+                              style={{
+                                marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)',
+                                display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer'
+                              }}
+                            >
+                              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+                                LAST
+                              </span>
+                              <span>{lastMatch.oppFlag}</span>
+                              <span style={{ color: lastMatch.oppOwner ? 'var(--gold)' : 'var(--text-secondary)', fontWeight: lastMatch.oppOwner ? 600 : 400 }}>
+                                {lastMatch.oppOwner || lastMatch.oppName}
+                              </span>
+                              <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                {lastMatch.myScore}–{lastMatch.oppScore}
+                              </span>
+                              <span style={{ color: 'var(--text-muted)', fontSize: 9, marginLeft: 'auto' }}>
+                                {isLastExpanded ? '▲' : '▼'}
+                              </span>
+                            </div>
+                          )}
+                          {isLastExpanded && lastMatch && (
+                            <div style={{ paddingTop: 4 }}>
+                              {lastMatch.goals.length === 0 ? (
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>No goals scored.</div>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  {lastMatch.goals.map((g, i) => (
+                                    <div key={i} style={{ fontSize: 10, color: g.teamId === lastMatch.myTeamId ? 'var(--gold)' : 'var(--text-secondary)' }}>
+                                      {g.teamId === lastMatch.myTeamId ? team.flag : lastMatch.oppFlag} {g.scorer}
+                                      <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginLeft: 4 }}>{g.clock}</span>
+                                      {g.ownGoal && <span style={{ color: '#e05252', fontSize: 9, marginLeft: 4 }}>OG</span>}
+                                      {g.penalty && <span style={{ color: 'var(--gold)', fontSize: 9, marginLeft: 4 }}>PEN</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {nextMatch ? (
                             <div style={{
                               marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)',

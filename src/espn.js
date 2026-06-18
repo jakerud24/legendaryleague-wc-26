@@ -179,3 +179,19 @@ export function getNextMatchInfo(espnData) {
   const away = comps.find(c => c.homeAway === 'away')?.team?.displayName || '';
   return { date: next.date, home, away };
 }
+
+// Extracts goal-scoring events from a finished match's `details` array.
+// Returns array of { teamId, scorer, clock, ownGoal, penalty }
+export function getGoalsForEvent(event) {
+  const comp = event?.competitions?.[0];
+  const details = comp?.details || [];
+  return details
+    .filter(d => d.scoringPlay)
+    .map(d => ({
+      teamId: d.team?.id,
+      scorer: d.athletesInvolved?.[0]?.shortName || d.athletesInvolved?.[0]?.displayName || 'Unknown',
+      clock: d.clock?.displayValue || '',
+      ownGoal: !!d.ownGoal,
+      penalty: !!d.penaltyKick,
+    }));
+}
