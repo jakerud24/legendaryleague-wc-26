@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { TEAMS } from '../data';
 
 const ESPN_NAME_MAP_REVERSE = {
-  mexico: 'Mexico', south_africa: 'South Africa', south_korea: 'Korea Republic',
-  czechia: 'Czech Republic', canada: 'Canada', bosnia: 'Bosnia and Herzegovina',
+  mexico: 'Mexico', south_africa: 'South Africa', south_korea: 'South Korea',
+  czechia: 'Czechia', canada: 'Canada', bosnia: 'Bosnia-Herzegovina',
   qatar: 'Qatar', switzerland: 'Switzerland', brazil: 'Brazil', morocco: 'Morocco',
   haiti: 'Haiti', scotland: 'Scotland', usa: 'United States', paraguay: 'Paraguay',
-  australia: 'Australia', turkey: 'Turkey', germany: 'Germany', ivory_coast: "Ivory Coast",
+  australia: 'Australia', turkey: 'Türkiye', germany: 'Germany', ivory_coast: 'Ivory Coast',
   ecuador: 'Ecuador', curacao: 'Curaçao', netherlands: 'Netherlands', japan: 'Japan',
   sweden: 'Sweden', tunisia: 'Tunisia', belgium: 'Belgium', egypt: 'Egypt', iran: 'Iran',
   new_zealand: 'New Zealand', spain: 'Spain', cape_verde: 'Cape Verde', saudi_arabia: 'Saudi Arabia',
@@ -14,6 +14,10 @@ const ESPN_NAME_MAP_REVERSE = {
   argentina: 'Argentina', algeria: 'Algeria', austria: 'Austria', jordan: 'Jordan',
   colombia: 'Colombia', portugal: 'Portugal', dr_congo: 'DR Congo', uzbekistan: 'Uzbekistan',
   england: 'England', croatia: 'Croatia', ghana: 'Ghana', panama: 'Panama',
+};
+
+const DISPLAY_NAME_OVERRIDE = {
+  bosnia: 'Bosnia',
 };
 
 function getNextMatchForTeam(teamId, espnData, ownerMap) {
@@ -49,6 +53,7 @@ function getNextMatchForTeam(teamId, espnData, ownerMap) {
     date: next.date,
     isLive,
     oppFlag: oppTeam?.flag || '🏳',
+    oppName: oppTeam ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name) : oppName,
     oppOwner,
   };
 }
@@ -117,9 +122,10 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     if (!team) return null;
                     const pts = getTeamPts(tid);
                     const stats = getTeamStats(tid);
+                    const displayName = DISPLAY_NAME_OVERRIDE[tid] || team.name;
                     return (
                       <span key={tid} className={`team-pill ${pts === 0 ? '' : pts >= 6 ? 'deep' : 'alive'} ${stats.live ? 'pill-live' : ''}`}>
-                        {team.flag}<span className="team-pill-name"> {team.name}</span>
+                        {team.flag}<span className="team-pill-name"> {displayName}</span>
                         {stats.live && <span className="pill-live-badge">LIVE</span>}
                         {stats.played > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', marginLeft: 2 }}>{stats.played}GP</span>}
                         <span className="team-pill-pts">{pts}</span>
@@ -143,6 +149,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                       if (!team) return null;
                       const pts = getTeamPts(tid);
                       const stats = getTeamStats(tid);
+                      const displayName = DISPLAY_NAME_OVERRIDE[tid] || team.name;
                       const nextMatch = getNextMatchForTeam(tid, espnData, ownerMap);
                       return (
                         <div key={tid} className={`expand-team ${stats.live ? 'pill-live' : ''}`} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
@@ -150,7 +157,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                             <span className="expand-team-flag">{team.flag}</span>
                             <div style={{ flex: 1 }}>
                               <div className="expand-team-name">
-                                {team.name}{stats.live && <span className="live-dot" />}
+                                {displayName}{stats.live && <span className="live-dot" />}
                               </div>
                               {stats.played > 0 && (
                                 <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
@@ -160,7 +167,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                             </div>
                             <span className="expand-team-pts">{pts}</span>
                           </div>
-                          {nextMatch && (
+                          {nextMatch ? (
                             <div style={{
                               marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)',
                               display: 'flex', alignItems: 'center', gap: 6, fontSize: 11
@@ -169,13 +176,19 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                                 {nextMatch.isLive ? 'LIVE NOW' : 'NEXT'}
                               </span>
                               <span>{nextMatch.oppFlag}</span>
-                              {nextMatch.oppOwner && (
-                                <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{nextMatch.oppOwner}</span>
-                              )}
+                              <span style={{ color: nextMatch.oppOwner ? 'var(--gold)' : 'var(--text-secondary)', fontWeight: nextMatch.oppOwner ? 600 : 400 }}>
+                                {nextMatch.oppOwner || nextMatch.oppName}
+                              </span>
                               <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--mono)', fontSize: 10, marginLeft: 'auto' }}>
                                 {formatPST(nextMatch.date)}
                               </span>
                             </div>
+                          ) : (
+                            stats.played > 0 && (
+                              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                                Tournament complete for this team
+                              </div>
+                            )
                           )}
                         </div>
                       );

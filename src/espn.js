@@ -1,12 +1,12 @@
-// ESPN name → our team ID mapping
+// ESPN displayName → our team ID mapping (verified against live API response)
 const ESPN_NAME_MAP = {
-  'Mexico': 'mexico', 'South Africa': 'south_africa', 'Korea Republic': 'south_korea',
-  'South Korea': 'south_korea', 'Czech Republic': 'czechia', 'Czechia': 'czechia',
-  'Canada': 'canada', 'Bosnia and Herzegovina': 'bosnia', 'Bosnia-Herzegovina': 'bosnia',
+  'Mexico': 'mexico', 'South Africa': 'south_africa', 'South Korea': 'south_korea',
+  'Czechia': 'czechia', 'Canada': 'canada',
+  'Bosnia-Herzegovina': 'bosnia', 'Bosnia and Herzegovina': 'bosnia',
   'Qatar': 'qatar', 'Switzerland': 'switzerland', 'Brazil': 'brazil', 'Morocco': 'morocco',
   'Haiti': 'haiti', 'Scotland': 'scotland', 'United States': 'usa', 'USA': 'usa',
-  'Paraguay': 'paraguay', 'Australia': 'australia', 'Turkey': 'turkey', 'Türkiye': 'turkey',
-  'Germany': 'germany', "Ivory Coast": 'ivory_coast', "Côte d'Ivoire": 'ivory_coast',
+  'Paraguay': 'paraguay', 'Australia': 'australia', 'Türkiye': 'turkey', 'Turkey': 'turkey',
+  'Germany': 'germany', 'Ivory Coast': 'ivory_coast', "Côte d'Ivoire": 'ivory_coast',
   'Ecuador': 'ecuador', 'Curaçao': 'curacao', 'Curacao': 'curacao',
   'Netherlands': 'netherlands', 'Japan': 'japan', 'Sweden': 'sweden', 'Tunisia': 'tunisia',
   'Belgium': 'belgium', 'Egypt': 'egypt', 'Iran': 'iran', 'New Zealand': 'new_zealand',
@@ -23,29 +23,26 @@ function mapName(name) {
   return ESPN_NAME_MAP[name] || null;
 }
 
-// Points per match result
 function matchPoints(homeScore, awayScore, homeId, targetId, status, round) {
   const isHome = homeId === targetId;
   const teamScore = isHome ? homeScore : awayScore;
   const oppScore = isHome ? awayScore : homeScore;
   const isFinal = round?.toLowerCase().includes('final') && !round?.toLowerCase().includes('3rd') && !round?.toLowerCase().includes('third');
   const is3rd = round?.toLowerCase().includes('3rd') || round?.toLowerCase().includes('third');
-  
-  if (is3rd) return null; // skip 3rd place game
-  
-  const bonus = isFinal ? 1 : 0;
 
-  // Check if it went to ET/pens
+  if (is3rd) return null;
+
+  const bonus = isFinal ? 1 : 0;
   const wentET = status === 'AET' || status === 'Pen';
-  
-  if (teamScore > oppScore) return 3 + bonus; // win
-  if (teamScore < oppScore) return wentET ? 1 + bonus : 0 + bonus; // loss
-  return 1 + bonus; // draw
+
+  if (teamScore > oppScore) return 3 + bonus;
+  if (teamScore < oppScore) return wentET ? 1 + bonus : 0 + bonus;
+  return 1 + bonus;
 }
 
 const CACHE_KEY = 'espn_wc_data';
-const CACHE_TTL_LIVE = 30 * 1000; // 30 seconds when live
-const CACHE_TTL_IDLE = 5 * 60 * 1000; // 5 minutes otherwise
+const CACHE_TTL_LIVE = 30 * 1000;
+const CACHE_TTL_IDLE = 5 * 60 * 1000;
 
 function getCached() {
   try {
@@ -75,21 +72,19 @@ export async function fetchESPNData() {
   const res = await fetch('/api/fixtures');
   const json = await res.json();
 
-  // Check if any games are live right now
   const isLive = json.events?.some(e => e.status?.type?.state === 'in');
   setCache(json, isLive);
   return json;
 }
 
-// Returns { teamId: { points, played, wins, draws, losses, gf, ga, gd } }
 export function parseESPNResults(espnData) {
   const teamStats = {};
 
   if (!espnData?.events) return teamStats;
 
   espnData.events.forEach(event => {
-    const status = event.status?.type?.state; // 'pre', 'in', 'post'
-    if (status !== 'post' && status !== 'in') return; // include live + finished games
+    const status = event.status?.type?.state;
+    if (status !== 'post' && status !== 'in') return;
 
     const competition = event.competitions?.[0];
     if (!competition) return;
@@ -131,7 +126,6 @@ export function parseESPNResults(espnData) {
       const ga = isHome ? awayScore : homeScore;
 
       if (isLiveMatch) {
-        // Provisional live stats — don't increment played/W/L permanently, just show current state
         teamStats[teamId].live = true;
         teamStats[teamId].liveGf = gf;
         teamStats[teamId].liveGa = ga;

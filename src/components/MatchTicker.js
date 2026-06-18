@@ -3,13 +3,13 @@ import { TEAMS } from '../data';
 
 function getTeamId(espnName) {
   const map = {
-    'Mexico': 'mexico', 'South Africa': 'south_africa', 'Korea Republic': 'south_korea',
-    'South Korea': 'south_korea', 'Czech Republic': 'czechia', 'Czechia': 'czechia',
-    'Canada': 'canada', 'Bosnia and Herzegovina': 'bosnia', 'Qatar': 'qatar',
-    'Switzerland': 'switzerland', 'Brazil': 'brazil', 'Morocco': 'morocco',
+    'Mexico': 'mexico', 'South Africa': 'south_africa', 'South Korea': 'south_korea',
+    'Czechia': 'czechia', 'Canada': 'canada',
+    'Bosnia-Herzegovina': 'bosnia', 'Bosnia and Herzegovina': 'bosnia',
+    'Qatar': 'qatar', 'Switzerland': 'switzerland', 'Brazil': 'brazil', 'Morocco': 'morocco',
     'Haiti': 'haiti', 'Scotland': 'scotland', 'United States': 'usa', 'USA': 'usa',
-    'Paraguay': 'paraguay', 'Australia': 'australia', 'Turkey': 'turkey', 'Türkiye': 'turkey',
-    'Germany': 'germany', "Ivory Coast": 'ivory_coast', "Côte d'Ivoire": 'ivory_coast',
+    'Paraguay': 'paraguay', 'Australia': 'australia', 'Türkiye': 'turkey', 'Turkey': 'turkey',
+    'Germany': 'germany', 'Ivory Coast': 'ivory_coast', "Côte d'Ivoire": 'ivory_coast',
     'Ecuador': 'ecuador', 'Curaçao': 'curacao', 'Curacao': 'curacao',
     'Netherlands': 'netherlands', 'Japan': 'japan', 'Sweden': 'sweden', 'Tunisia': 'tunisia',
     'Belgium': 'belgium', 'Egypt': 'egypt', 'Iran': 'iran', 'New Zealand': 'new_zealand',
@@ -55,6 +55,12 @@ function MatchCard({ event, ownerMap }) {
   const homeScore = home.score ?? '';
   const awayScore = away.score ?? '';
 
+  // Shortened display names
+  const shortName = (name, id) => {
+    if (id === 'bosnia') return 'Bosnia';
+    return name.split(' ').pop();
+  };
+
   const kickoffTime = new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
@@ -79,7 +85,7 @@ function MatchCard({ event, ownerMap }) {
 
       <span>{homeFlag}</span>
       <span style={{ color: homeOwner ? 'var(--gold)' : 'var(--text-secondary)' }}>
-        {homeOwner ? homeOwner : homeName.split(' ').pop()}
+        {homeOwner ? homeOwner : shortName(homeName, homeId)}
       </span>
 
       {(isLive || isFinal) ? (
@@ -91,7 +97,7 @@ function MatchCard({ event, ownerMap }) {
       )}
 
       <span style={{ color: awayOwner ? 'var(--gold)' : 'var(--text-secondary)' }}>
-        {awayOwner ? awayOwner : awayName.split(' ').pop()}
+        {awayOwner ? awayOwner : shortName(awayName, awayId)}
       </span>
       <span>{awayFlag}</span>
     </div>
