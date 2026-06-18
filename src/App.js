@@ -96,7 +96,6 @@ export default function App() {
     });
   };
 
-  // Pure ESPN — no manual override
   const getTeamStats = (teamId) =>
     espnStats[teamId] || { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0 };
 
@@ -158,7 +157,7 @@ export default function App() {
       </nav>
 
       <main className="app-main">
-        {activeTab === 'standings' && <Standings managers={managers} getSortedManagers={getSortedManagers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
+        {activeTab === 'standings' && <Standings managers={managers} getSortedManagers={getSortedManagers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} espnData={espnData} />}
         {activeTab === 'bracket' && <Bracket managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
         {activeTab === 'nations' && <Nations managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
         {activeTab === 'draft' && <DraftRoom managers={managers} setManagers={setManagers} matchResults={{}} setMatchResults={() => {}} />}
