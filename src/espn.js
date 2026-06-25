@@ -79,6 +79,8 @@ export async function fetchESPNData() {
 
 export function parseESPNResults(espnData) {
   const teamStats = {};
+  const eliminatedTeams = new Set();
+  const advancedTeams = new Set();
 
   if (!espnData?.events) return teamStats;
 
@@ -160,6 +162,26 @@ export function parseESPNResults(espnData) {
         teamStats[teamId].points += 1 + bonus;
       }
     });
+
+    // Track eliminated/advanced teams from ESPN's advance flag (only set after group stage)
+    if (status === 'post') {
+      [home, away].forEach(c => {
+        const id = mapName(c.team?.displayName || c.team?.name);
+        if (!id) return;
+        if (c.advance === true) advancedTeams.add(id);
+        if (c.advance === false && c.winner === false && c.advance !== undefined) {
+          // Only mark eliminated if ESPN explicitly set advance=false
+          eliminatedTeams.add(id);
+        }
+      });
+    }
+  });
+
+  // A team is eliminated if ESPN says advance=false AND they haven't also advanced
+  // (advance can be false for a winner who didn't advance, so cross-check)
+  eliminatedTeams.forEach(id => {
+    if (advancedTeams.has(id)) eliminatedTeams.delete(id);
+    if (teamStats[id]) teamStats[id].eliminated = true;
   });
 
   return teamStats;

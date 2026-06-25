@@ -170,6 +170,8 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
           const isExpanded = expanded === mgr.id;
           const gp = getManagerGP(mgr);
           const isLive = managerHasLive(mgr);
+          const aliveCount = (mgr.teams || []).filter(tid => !getTeamStats(tid).eliminated).length;
+          const totalTeams = (mgr.teams || []).length;
           return (
             <div key={mgr.id} className={`manager-card ${idx === 0 && mgr.score > 0 ? 'leader' : ''} ${isLive ? 'live-card' : ''}`}
               onClick={() => setExpanded(isExpanded ? null : mgr.id)}>
@@ -180,9 +182,19 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     {mgr.name}
                     {isLive && <span className="live-dot" />}
                   </span>
-                  {gp > 0 && (
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>{gp} GP</span>
-                  )}
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {gp > 0 && (
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>{gp} GP</span>
+                    )}
+                    {aliveCount < totalTeams && totalTeams > 0 && (
+                      <span style={{
+                        fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700,
+                        color: aliveCount === 0 ? '#e05252' : 'var(--gold)',
+                      }}>
+                        {aliveCount}/{totalTeams} Alive
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="manager-teams-inline">
                   {(mgr.teams || []).map(tid => {
@@ -191,9 +203,21 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     const pts = getTeamPts(tid);
                     const stats = getTeamStats(tid);
                     const displayName = DISPLAY_NAME_OVERRIDE[tid] || team.name;
+                    const isEliminated = !!stats.eliminated;
                     return (
-                      <span key={tid} className={`team-pill ${pts === 0 ? '' : pts >= 6 ? 'deep' : 'alive'} ${stats.live ? 'pill-live' : ''}`}>
-                        {team.flag}<span className="team-pill-name"> {displayName}</span>
+                      <span key={tid} className={`team-pill ${pts === 0 ? '' : pts >= 6 ? 'deep' : 'alive'} ${stats.live ? 'pill-live' : ''} ${isEliminated ? 'pill-eliminated' : ''}`}>
+                        <span style={{ position: 'relative', display: 'inline-block' }}>
+                          {team.flag}
+                          {isEliminated && (
+                            <span style={{
+                              position: 'absolute', inset: 0,
+                              background: 'rgba(0,0,0,0.55)',
+                              borderRadius: 2,
+                              pointerEvents: 'none',
+                            }} />
+                          )}
+                        </span>
+                        <span className="team-pill-name"> {displayName}</span>
                         {stats.live && <span className="pill-live-badge">LIVE</span>}
                         {stats.played > 0 && <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', marginLeft: 2 }}>{stats.played}GP</span>}
                         <span className="team-pill-pts">{pts}</span>
