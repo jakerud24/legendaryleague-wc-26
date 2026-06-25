@@ -180,46 +180,33 @@ export function parseESPNResults(espnData) {
     }
   });
 
-  // Count finished group stage games — 48 total
-  const finishedGroupGames = espnData.events.filter(e =>
-    e.status?.type?.state === 'post' &&
-    (e.season?.slug || '').includes('group')
-  ).length;
-  const allGroupsDone = finishedGroupGames >= 48;
-
-  // Build group membership and standings from finished group games
-  const groupTeams = {}; // groupLabel -> [teamId, ...]
+  // Build group standings from finished group games
+  const groupTeams = {}; // groupLabel -> Set of teamIds
   espnData.events.forEach(e => {
     if (!(e.season?.slug || '').includes('group')) return;
-    const groupNote = e.competitions?.[0]?.altGameNote || ''; // e.g. "FIFA World Cup, Group A"
+    const groupNote = e.competitions?.[0]?.altGameNote || '';
     const groupMatch = groupNote.match(/Group ([A-L])/i);
     if (!groupMatch) return;
     const grp = groupMatch[1].toUpperCase();
     if (!groupTeams[grp]) groupTeams[grp] = new Set();
-    const competitors = e.competitions?.[0]?.competitors || [];
-    competitors.forEach(c => {
+    (e.competitions?.[0]?.competitors || []).forEach(c => {
       const id = mapName(c.team?.displayName || c.team?.name);
       if (id) groupTeams[grp].add(id);
     });
   });
 
-  // For each group with all 3 games played (6 team-games = 3 matches),
-  // rank teams and mark 4th place as eliminated immediately.
-  // 3rd place only gets marked after all 48 games done (best-3rd-place rule).
+  // Eliminated = 4th place in group AND played all 3 group games
+  // No 4th place team can ever advance (top 2 + best 8 third-place teams qualify)
   Object.entries(groupTeams).forEach(([grp, teamSet]) => {
     const teams = [...teamSet];
     if (teams.length < 4) return;
 
-    // Count games played per team in this group
-    const gamesInGroup = espnData.events.filter(e => {
-      const note = e.competitions?.[0]?.altGameNote || '';
-      return note.includes(`Group ${grp}`) && e.status?.type?.state === 'post';
-    }).length;
+    // Only apply if all teams in the group have played 3 games
+    const allPlayedThree = teams.every(id => (teamStats[id]?.played || 0) >= 3);
+    if (!allPlayedThree) return;
 
-    if (gamesInGroup < 3) return; // group not fully played yet — no shadows
-
-    // Sort by pts desc, GD desc, GF desc
-    const ranked = teams.sort((a, b) => {
+    // Sort by pts desc, GD desc, GF desc to find 4th place
+    const ranked = [...teams].sort((a, b) => {
       const sa = teamStats[a] || {};
       const sb = teamStats[b] || {};
       if ((sb.points || 0) !== (sa.points || 0)) return (sb.points || 0) - (sa.points || 0);
@@ -228,32 +215,24 @@ export function parseESPNResults(espnData) {
     });
 
     const fourth = ranked[3];
-    const third = ranked[2];
-
-    // 4th place: always eliminated once their group is done
-    if (fourth && !advanceTrue.has(fourth)) {
+    if (fourth) {
       if (!teamStats[fourth]) teamStats[fourth] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
       teamStats[fourth].eliminated = true;
     }
-
-    // 3rd place: only eliminated after all 48 group games done (ESPN resolves best-3rd-place)
-    if (allGroupsDone && third && !advanceTrue.has(third) && advanceFalse.has(third)) {
-      if (!teamStats[third]) teamStats[third] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
-      teamStats[third].eliminated = true;
-    }
   });
 
-  // Knockout round eliminations — advance=false is unambiguous
+  // Knockout round eliminations — losing team has no further games
   advanceFalse.forEach(id => {
     if (advanceTrue.has(id)) return;
+    const isGroupTeam = Object.values(groupTeams).some(s => s.has(id));
+    if (isGroupTeam) return; // handled above
     const hasUpcoming = espnData.events.some(e =>
       e.status?.type?.state === 'pre' &&
       (e.competitions?.[0]?.competitors || []).some(c =>
         mapName(c.team?.displayName || c.team?.name) === id
       )
     );
-    const isGroupTeam = Object.values(groupTeams).some(s => s.has(id));
-    if (!isGroupTeam && !hasUpcoming) {
+    if (!hasUpcoming) {
       if (!teamStats[id]) teamStats[id] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
       teamStats[id].eliminated = true;
     }
