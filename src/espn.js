@@ -79,8 +79,8 @@ export async function fetchESPNData() {
 
 export function parseESPNResults(espnData) {
   const teamStats = {};
-  const eliminatedTeams = new Set();
-  const advancedTeams = new Set();
+  const advanceFalse = new Set();
+  const advanceTrue = new Set();
 
   if (!espnData?.events) return teamStats;
 
@@ -163,25 +163,100 @@ export function parseESPNResults(espnData) {
       }
     });
 
-    // Track eliminated/advanced teams from ESPN's advance flag (only set after group stage)
+    // Track advance flags from finished games
     if (status === 'post') {
+      const isGroupGame = (event.season?.slug || '').includes('group');
       [home, away].forEach(c => {
         const id = mapName(c.team?.displayName || c.team?.name);
         if (!id) return;
-        if (c.advance === true) advancedTeams.add(id);
-        if (c.advance === false && c.winner === false && c.advance !== undefined) {
-          // Only mark eliminated if ESPN explicitly set advance=false
-          eliminatedTeams.add(id);
+        if (c.advance === true) advanceTrue.add(id);
+        else if (c.advance === false) {
+          // In knockout rounds advance=false is unambiguous — team is out
+          // In group stage we wait until all 48 games are done (best 3rd-place rule)
+          if (!isGroupGame) advanceTrue.delete(id); // ensure not in advance set
+          advanceFalse.add(id);
         }
       });
     }
   });
 
-  // A team is eliminated if ESPN says advance=false AND they haven't also advanced
-  // (advance can be false for a winner who didn't advance, so cross-check)
-  eliminatedTeams.forEach(id => {
-    if (advancedTeams.has(id)) eliminatedTeams.delete(id);
-    if (teamStats[id]) teamStats[id].eliminated = true;
+  // Count finished group stage games — 48 total
+  const finishedGroupGames = espnData.events.filter(e =>
+    e.status?.type?.state === 'post' &&
+    (e.season?.slug || '').includes('group')
+  ).length;
+  const allGroupsDone = finishedGroupGames >= 48;
+
+  // Build group membership and standings from finished group games
+  const groupTeams = {}; // groupLabel -> [teamId, ...]
+  espnData.events.forEach(e => {
+    if (!(e.season?.slug || '').includes('group')) return;
+    const groupNote = e.competitions?.[0]?.altGameNote || ''; // e.g. "FIFA World Cup, Group A"
+    const groupMatch = groupNote.match(/Group ([A-L])/i);
+    if (!groupMatch) return;
+    const grp = groupMatch[1].toUpperCase();
+    if (!groupTeams[grp]) groupTeams[grp] = new Set();
+    const competitors = e.competitions?.[0]?.competitors || [];
+    competitors.forEach(c => {
+      const id = mapName(c.team?.displayName || c.team?.name);
+      if (id) groupTeams[grp].add(id);
+    });
+  });
+
+  // For each group with all 3 games played (6 team-games = 3 matches),
+  // rank teams and mark 4th place as eliminated immediately.
+  // 3rd place only gets marked after all 48 games done (best-3rd-place rule).
+  Object.entries(groupTeams).forEach(([grp, teamSet]) => {
+    const teams = [...teamSet];
+    if (teams.length < 4) return;
+
+    // Count games played per team in this group
+    const gamesInGroup = espnData.events.filter(e => {
+      const note = e.competitions?.[0]?.altGameNote || '';
+      return note.includes(`Group ${grp}`) && e.status?.type?.state === 'post';
+    }).length;
+
+    if (gamesInGroup < 3) return; // group not fully played yet — no shadows
+
+    // Sort by pts desc, GD desc, GF desc
+    const ranked = teams.sort((a, b) => {
+      const sa = teamStats[a] || {};
+      const sb = teamStats[b] || {};
+      if ((sb.points || 0) !== (sa.points || 0)) return (sb.points || 0) - (sa.points || 0);
+      if ((sb.gd || 0) !== (sa.gd || 0)) return (sb.gd || 0) - (sa.gd || 0);
+      return (sb.gf || 0) - (sa.gf || 0);
+    });
+
+    const fourth = ranked[3];
+    const third = ranked[2];
+
+    // 4th place: always eliminated once their group is done
+    if (fourth && !advanceTrue.has(fourth)) {
+      if (!teamStats[fourth]) teamStats[fourth] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
+      teamStats[fourth].eliminated = true;
+    }
+
+    // 3rd place: only eliminated after all 48 group games done (ESPN resolves best-3rd-place)
+    if (allGroupsDone && third && !advanceTrue.has(third) && advanceFalse.has(third)) {
+      if (!teamStats[third]) teamStats[third] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
+      teamStats[third].eliminated = true;
+    }
+  });
+
+  // Knockout round eliminations — advance=false is unambiguous
+  advanceFalse.forEach(id => {
+    if (advanceTrue.has(id)) return;
+    const hasUpcoming = espnData.events.some(e =>
+      e.status?.type?.state === 'pre' &&
+      (e.competitions?.[0]?.competitors || []).some(c =>
+        mapName(c.team?.displayName || c.team?.name) === id
+      )
+    );
+    const isGroupTeam = Object.values(groupTeams).some(s => s.has(id));
+    if (!isGroupTeam && !hasUpcoming) {
+      if (!teamStats[id]) teamStats[id] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
+      teamStats[id].eliminated = true;
+    }
   });
 
   return teamStats;
