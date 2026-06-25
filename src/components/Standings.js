@@ -186,10 +186,10 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     {gp > 0 && (
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>{gp} GP</span>
                     )}
-                    {aliveCount < totalTeams && totalTeams > 0 && (
+                    {totalTeams > 0 && (
                       <span style={{
                         fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 700,
-                        color: aliveCount === 0 ? '#e05252' : 'var(--gold)',
+                        color: aliveCount === 0 ? '#e05252' : aliveCount < totalTeams ? 'var(--gold)' : 'var(--text-muted)',
                       }}>
                         {aliveCount}/{totalTeams} Alive
                       </span>
