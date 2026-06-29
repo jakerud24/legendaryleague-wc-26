@@ -73,57 +73,73 @@ function getNextMatchForTeam(teamId, espnData, ownerMap) {
   const oppOwner = oppTeam ? ownerMap[oppTeam.id] : null;
   const isLive = next.status?.type?.state === 'in';
 
+  // If opponent is TBD (no real team name yet), try to find the other upcoming match
+  // that feeds into this one — for now just show whatever ESPN gives us
+  const oppDisplayName = oppTeam
+    ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name)
+    : (oppName !== 'TBD' ? oppName : null);
+
   return {
     date: next.date,
     isLive,
-    oppFlag: oppTeam?.flag || '🏳',
-    oppName: oppTeam ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name) : oppName,
+    oppFlag: oppTeam?.flag || (oppDisplayName ? '⚽' : '❓'),
+    oppName: oppDisplayName,
     oppOwner,
     venue: comp?.venue?.address?.city || comp?.venue?.fullName || null,
   };
 }
 
-function getLastMatchForTeam(teamId, espnData, ownerMap) {
-  if (!espnData?.events) return null;
+function getAllResultsForTeam(teamId, espnData, ownerMap) {
+  if (!espnData?.events) return [];
   const myNames = getAllNamesForTeam(teamId);
-  if (!myNames || myNames.length === 0) return null;
+  if (!myNames || myNames.length === 0) return [];
 
   const finished = espnData.events.filter(e => {
-    const state = e.status?.type?.state;
-    if (state !== 'post') return false;
-    const comp = e.competitions?.[0];
-    const competitors = comp?.competitors || [];
-    return competitors.some(c => myNames.includes(c.team?.displayName || c.team?.name));
+    if (e.status?.type?.state !== 'post') return false;
+    return (e.competitions?.[0]?.competitors || []).some(c =>
+      myNames.includes(c.team?.displayName || c.team?.name)
+    );
   });
 
-  if (finished.length === 0) return null;
-  finished.sort((a, b) => new Date(b.date) - new Date(a.date));
-  const last = finished[0];
-  const comp = last.competitions?.[0];
-  const competitors = comp?.competitors || [];
-  const me = competitors.find(c => myNames.includes(c.team?.displayName || c.team?.name));
-  const opponent = competitors.find(c => !myNames.includes(c.team?.displayName || c.team?.name));
-  if (!opponent || !me) return null;
+  finished.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  const oppName = opponent.team?.displayName || opponent.team?.name;
-  const oppTeamId = getTeamIdForEspnName(oppName);
-  const oppTeam = oppTeamId ? TEAMS.find(t => t.id === oppTeamId) : null;
-  const oppOwner = oppTeam ? ownerMap[oppTeam.id] : null;
+  return finished.map(event => {
+    const comp = event.competitions?.[0];
+    const competitors = comp?.competitors || [];
+    const me = competitors.find(c => myNames.includes(c.team?.displayName || c.team?.name));
+    const opponent = competitors.find(c => !myNames.includes(c.team?.displayName || c.team?.name));
+    if (!me || !opponent) return null;
 
-  const myScore = parseInt(me.score) || 0;
-  const oppScore = parseInt(opponent.score) || 0;
-  const goals = getGoalsForEvent(last);
+    const oppName = opponent.team?.displayName || opponent.team?.name;
+    const oppTeamId = getTeamIdForEspnName(oppName);
+    const oppTeam = oppTeamId ? TEAMS.find(t => t.id === oppTeamId) : null;
+    const oppOwner = oppTeam ? ownerMap[oppTeam.id] : null;
+    const myScore = parseInt(me.score) || 0;
+    const oppScore = parseInt(opponent.score) || 0;
+    const won = me.winner === true;
+    const lost = opponent.winner === true;
+    const shortDetail = comp?.status?.type?.shortDetail || '';
+    const wentET = shortDetail.includes('AET') || shortDetail.includes('Pen');
+    const goals = getGoalsForEvent(event);
+    const slug = event.season?.slug || '';
+    const isKO = !slug.includes('group');
 
-  return {
-    date: last.date,
-    oppFlag: oppTeam?.flag || '🏳',
-    oppName: oppTeam ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name) : oppName,
-    oppOwner,
-    myScore,
-    oppScore,
-    goals,
-    myTeamId: me.team?.id,
-  };
+    return {
+      date: event.date,
+      oppFlag: oppTeam?.flag || '🏳',
+      oppName: oppTeam ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name) : oppName,
+      oppOwner,
+      myScore,
+      oppScore,
+      won,
+      lost,
+      draw: !won && !lost,
+      wentET,
+      goals,
+      myTeamId: me.team?.id,
+      isKO,
+    };
+  }).filter(Boolean);
 }
 
 function formatPST(dateStr) {
@@ -135,7 +151,7 @@ function formatPST(dateStr) {
 
 export default function Standings({ managers, getSortedManagers, getTeamPts, getTeamStats, espnData }) {
   const [expanded, setExpanded] = useState(null);
-  const [expandedLastMatch, setExpandedLastMatch] = useState(null);
+  const [expandedResults, setExpandedResults] = useState(null);
   const sorted = getSortedManagers();
   const getTeam = (id) => TEAMS.find(t => t.id === id);
 
@@ -244,11 +260,12 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                       const stats = getTeamStats(tid);
                       const displayName = DISPLAY_NAME_OVERRIDE[tid] || team.name;
                       const nextMatch = getNextMatchForTeam(tid, espnData, ownerMap);
-                      const lastMatch = getLastMatchForTeam(tid, espnData, ownerMap);
-                      const lastMatchKey = `${tid}-last`;
-                      const isLastExpanded = expandedLastMatch === lastMatchKey;
+                      const allResults = getAllResultsForTeam(tid, espnData, ownerMap);
+                      const resultsKey = `${tid}-results`;
+                      const isResultsExpanded = expandedResults === resultsKey;
                       return (
                         <div key={tid} className={`expand-team ${stats.live ? 'pill-live' : ''}`} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                          {/* Team header */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span className="expand-team-flag">{team.flag}</span>
                             <div style={{ flex: 1 }}>
@@ -263,47 +280,62 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                             </div>
                             <span className="expand-team-pts">{pts}</span>
                           </div>
-                          {lastMatch && (
-                            <div
-                              onClick={(e) => { e.stopPropagation(); setExpandedLastMatch(isLastExpanded ? null : lastMatchKey); }}
-                              style={{
-                                marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)',
-                                display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer'
-                              }}
-                            >
-                              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
-                                LAST
-                              </span>
-                              <span>{lastMatch.oppFlag}</span>
-                              <span style={{ color: lastMatch.oppOwner ? 'var(--gold)' : 'var(--text-secondary)', fontWeight: lastMatch.oppOwner ? 600 : 400 }}>
-                                {lastMatch.oppOwner || lastMatch.oppName}
-                              </span>
-                              <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                {lastMatch.myScore}–{lastMatch.oppScore}
-                              </span>
-                              <span style={{ color: 'var(--text-muted)', fontSize: 9, marginLeft: 'auto' }}>
-                                {isLastExpanded ? '▲' : '▼'}
-                              </span>
-                            </div>
-                          )}
-                          {isLastExpanded && lastMatch && (
-                            <div style={{ paddingTop: 4 }}>
-                              {lastMatch.goals.length === 0 ? (
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>No goals scored.</div>
-                              ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                  {lastMatch.goals.map((g, i) => (
-                                    <div key={i} style={{ fontSize: 10, color: g.teamId === lastMatch.myTeamId ? 'var(--gold)' : 'var(--text-secondary)' }}>
-                                      {g.teamId === lastMatch.myTeamId ? team.flag : lastMatch.oppFlag} {g.scorer}
-                                      <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginLeft: 4 }}>{g.clock}</span>
-                                      {g.ownGoal && <span style={{ color: '#e05252', fontSize: 9, marginLeft: 4 }}>OG</span>}
-                                      {g.penalty && <span style={{ color: 'var(--gold)', fontSize: 9, marginLeft: 4 }}>PEN</span>}
+
+                          {/* Results — expandable */}
+                          {allResults.length > 0 && (
+                            <>
+                              <div
+                                onClick={(e) => { e.stopPropagation(); setExpandedResults(isResultsExpanded ? null : resultsKey); }}
+                                style={{
+                                  marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)',
+                                  display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer'
+                                }}
+                              >
+                                <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>RESULTS</span>
+                                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                                  {allResults.map(r => r.won ? 'W' : r.lost ? 'L' : 'D').join(' · ')}
+                                </span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: 9, marginLeft: 'auto' }}>{isResultsExpanded ? '▲' : '▼'}</span>
+                              </div>
+                              {isResultsExpanded && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 6 }}>
+                                  {allResults.map((r, i) => (
+                                    <div key={i} style={{ background: 'var(--green-light)', borderRadius: 6, padding: '6px 8px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                                        <span style={{
+                                          fontFamily: 'var(--mono)', fontSize: 9, fontWeight: 700, minWidth: 14,
+                                          color: r.won ? '#4ade80' : r.lost ? '#e05252' : 'var(--text-muted)'
+                                        }}>{r.won ? 'W' : r.lost ? 'L' : 'D'}</span>
+                                        <span>{r.oppFlag}</span>
+                                        <span style={{ flex: 1, color: r.oppOwner ? 'var(--gold)' : 'var(--text-secondary)', fontWeight: r.oppOwner ? 600 : 400 }}>
+                                          {r.oppOwner || r.oppName}
+                                        </span>
+                                        <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 12 }}>
+                                          {r.myScore}–{r.oppScore}
+                                        </span>
+                                        {r.wentET && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>AET</span>}
+                                        {r.isKO && <span style={{ fontSize: 9, color: 'var(--gold)', fontFamily: 'var(--mono)' }}>KO</span>}
+                                      </div>
+                                      {r.goals.length > 0 && (
+                                        <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                          {r.goals.map((g, gi) => (
+                                            <div key={gi} style={{ fontSize: 10, color: g.teamId === r.myTeamId ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                                              {g.teamId === r.myTeamId ? team.flag : r.oppFlag} {g.scorer}
+                                              <span style={{ fontFamily: 'var(--mono)', marginLeft: 4, color: 'var(--text-muted)' }}>{g.clock}</span>
+                                              {g.ownGoal && <span style={{ color: '#e05252', fontSize: 9, marginLeft: 4 }}>OG</span>}
+                                              {g.penalty && <span style={{ color: 'var(--gold)', fontSize: 9, marginLeft: 4 }}>PEN</span>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
                               )}
-                            </div>
+                            </>
                           )}
+
+                          {/* Next match */}
                           {nextMatch ? (
                             <div style={{
                               marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)',
@@ -314,7 +346,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                               </span>
                               <span>{nextMatch.oppFlag}</span>
                               <span style={{ color: nextMatch.oppOwner ? 'var(--gold)' : 'var(--text-secondary)', fontWeight: nextMatch.oppOwner ? 600 : 400 }}>
-                                {nextMatch.oppOwner || nextMatch.oppName}
+                                {nextMatch.oppOwner || nextMatch.oppName || '?'}
                               </span>
                               {nextMatch.venue && (
                                 <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>· {nextMatch.venue}</span>
@@ -324,9 +356,9 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                               </span>
                             </div>
                           ) : (
-                            stats.played > 0 && (
-                              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                                Tournament complete for this team
+                            stats.eliminated && (
+                              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)', fontSize: 10, color: '#e05252', fontFamily: 'var(--mono)' }}>
+                                Eliminated
                               </div>
                             )
                           )}
