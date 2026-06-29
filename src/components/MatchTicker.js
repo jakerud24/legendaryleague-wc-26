@@ -94,7 +94,8 @@ function MatchCard({ event, ownerMap, expandable, isExpanded, onToggle }) {
   const awayScore = away.score ?? '';
 
   const kickoffTime = new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const venue = comp?.venue?.fullName || null;
+  const venueAddr = comp?.venue?.address;
+  const venue = venueAddr ? (venueAddr.city || '') + (venueAddr.country && venueAddr.country !== 'USA' ? `, ${venueAddr.country}` : (venueAddr.city ? '' : '')) : null;
 
   return (
     <div style={{ display: 'inline-flex', flexDirection: 'column', verticalAlign: 'top' }}>

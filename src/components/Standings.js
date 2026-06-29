@@ -79,7 +79,7 @@ function getNextMatchForTeam(teamId, espnData, ownerMap) {
     oppFlag: oppTeam?.flag || '🏳',
     oppName: oppTeam ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name) : oppName,
     oppOwner,
-    venue: comp?.venue?.fullName || null,
+    venue: comp?.venue?.address?.city || comp?.venue?.fullName || null,
   };
 }
 

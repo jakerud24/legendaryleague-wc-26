@@ -79,7 +79,8 @@ function MatchBox({ event, ownerMap, onExpand, isExpanded }) {
   const awayScore = isPost || isLive ? parseInt(away?.score) || 0 : null;
   const shortDetail = comp.status?.type?.shortDetail || '';
   const wentET = shortDetail.includes('AET') || shortDetail.includes('Pen');
-  const venue = comp.venue?.fullName;
+  const venueAddr = comp.venue?.address;
+  const venue = venueAddr?.city || null;
 
   const kickoff = new Date(event.date).toLocaleDateString('en-US', {
     month: 'numeric', day: 'numeric', timeZone: 'America/Los_Angeles'
