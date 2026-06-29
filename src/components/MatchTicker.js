@@ -93,7 +93,8 @@ function MatchCard({ event, ownerMap, expandable, isExpanded, onToggle }) {
   const homeScore = home.score ?? '';
   const awayScore = away.score ?? '';
 
-  const kickoffTime = new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const kickoffDate = new Date(event.date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', timeZone: 'America/Los_Angeles' });
+  const kickoffTime = new Date(event.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
   const venueAddr = comp?.venue?.address;
   const venue = venueAddr ? (venueAddr.city || '') + (venueAddr.country && venueAddr.country !== 'USA' ? `, ${venueAddr.country}` : (venueAddr.city ? '' : '')) : null;
 
@@ -122,7 +123,7 @@ function MatchCard({ event, ownerMap, expandable, isExpanded, onToggle }) {
         {isFinal && <span style={{ color: 'var(--text-muted)', fontSize: 9, fontFamily: 'var(--mono)' }}>FT</span>}
         {state === 'pre' && (
           <span style={{ color: 'var(--text-muted)', fontSize: 9, fontFamily: 'var(--mono)' }}>
-            {kickoffTime}{venue ? ` · ${venue}` : ''}
+            {`${kickoffDate} ${kickoffTime}`}{venue ? ` · ${venue}` : ''}
           </span>
         )}
 
