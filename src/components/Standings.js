@@ -79,6 +79,7 @@ function getNextMatchForTeam(teamId, espnData, ownerMap) {
     oppFlag: oppTeam?.flag || '🏳',
     oppName: oppTeam ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name) : oppName,
     oppOwner,
+    venue: comp?.venue?.fullName || null,
   };
 }
 
@@ -306,7 +307,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                           {nextMatch ? (
                             <div style={{
                               marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)',
-                              display: 'flex', alignItems: 'center', gap: 6, fontSize: 11
+                              display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, flexWrap: 'wrap'
                             }}>
                               <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
                                 {nextMatch.isLive ? 'LIVE NOW' : 'NEXT'}
@@ -315,6 +316,9 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                               <span style={{ color: nextMatch.oppOwner ? 'var(--gold)' : 'var(--text-secondary)', fontWeight: nextMatch.oppOwner ? 600 : 400 }}>
                                 {nextMatch.oppOwner || nextMatch.oppName}
                               </span>
+                              {nextMatch.venue && (
+                                <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>· {nextMatch.venue}</span>
+                              )}
                               <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--mono)', fontSize: 10, marginLeft: 'auto' }}>
                                 {formatPST(nextMatch.date)}
                               </span>

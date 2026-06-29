@@ -158,7 +158,7 @@ export default function App() {
 
       <main className="app-main">
         {activeTab === 'standings' && <Standings managers={managers} getSortedManagers={getSortedManagers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} espnData={espnData} />}
-        {activeTab === 'bracket' && <Bracket managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
+        {activeTab === 'bracket' && <Bracket managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} espnData={espnData} />}
         {activeTab === 'nations' && <Nations managers={managers} getTeamPts={getTeamPts} getTeamStats={getTeamStats} />}
         {activeTab === 'draft' && <DraftRoom managers={managers} setManagers={setManagers} matchResults={{}} setMatchResults={() => {}} />}
       </main>

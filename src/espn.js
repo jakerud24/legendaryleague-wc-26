@@ -1,4 +1,3 @@
-// ESPN displayName → our team ID mapping (verified against live API response)
 const ESPN_NAME_MAP = {
   'Mexico': 'mexico', 'South Africa': 'south_africa', 'South Korea': 'south_korea',
   'Czechia': 'czechia', 'Canada': 'canada',
@@ -19,25 +18,8 @@ const ESPN_NAME_MAP = {
   'Ghana': 'ghana', 'Panama': 'panama',
 };
 
-function mapName(name) {
+export function mapName(name) {
   return ESPN_NAME_MAP[name] || null;
-}
-
-function matchPoints(homeScore, awayScore, homeId, targetId, status, round) {
-  const isHome = homeId === targetId;
-  const teamScore = isHome ? homeScore : awayScore;
-  const oppScore = isHome ? awayScore : homeScore;
-  const isFinal = round?.toLowerCase().includes('final') && !round?.toLowerCase().includes('3rd') && !round?.toLowerCase().includes('third');
-  const is3rd = round?.toLowerCase().includes('3rd') || round?.toLowerCase().includes('third');
-
-  if (is3rd) return null;
-
-  const bonus = isFinal ? 1 : 0;
-  const wentET = status === 'AET' || status === 'Pen';
-
-  if (teamScore > oppScore) return 3 + bonus;
-  if (teamScore < oppScore) return wentET ? 1 + bonus : 0 + bonus;
-  return 1 + bonus;
 }
 
 const CACHE_KEY = 'espn_wc_data';
@@ -68,10 +50,8 @@ export function clearESPNCache() {
 export async function fetchESPNData() {
   const cached = getCached();
   if (cached) return cached;
-
   const res = await fetch('/api/fixtures');
   const json = await res.json();
-
   const isLive = json.events?.some(e => e.status?.type?.state === 'in');
   setCache(json, isLive);
   return json;
@@ -84,6 +64,21 @@ export function parseESPNResults(espnData) {
 
   if (!espnData?.events) return teamStats;
 
+  // First pass: collect all group teams
+  const groupTeams = {}; // groupLabel -> Set of teamIds
+  espnData.events.forEach(e => {
+    if (!(e.season?.slug || '').includes('group')) return;
+    const note = e.competitions?.[0]?.altGameNote || '';
+    const m = note.match(/Group ([A-L])/i);
+    if (!m) return;
+    const grp = m[1].toUpperCase();
+    if (!groupTeams[grp]) groupTeams[grp] = new Set();
+    (e.competitions?.[0]?.competitors || []).forEach(c => {
+      const id = mapName(c.team?.displayName || c.team?.name);
+      if (id) groupTeams[grp].add(id);
+    });
+  });
+
   espnData.events.forEach(event => {
     const status = event.status?.type?.state;
     if (status !== 'post' && status !== 'in') return;
@@ -91,14 +86,13 @@ export function parseESPNResults(espnData) {
     const competition = event.competitions?.[0];
     if (!competition) return;
 
-    const round = event.season?.slug || competition.notes?.[0]?.text || '';
-    const is3rd = round.toLowerCase().includes('3rd') || round.toLowerCase().includes('third') ||
-                  competition.notes?.[0]?.text?.toLowerCase().includes('third');
+    const slug = event.season?.slug || '';
+    const isGroupGame = slug.includes('group');
+    const round = competition.notes?.[0]?.text || '';
+    const is3rd = round.toLowerCase().includes('3rd') || round.toLowerCase().includes('third');
     if (is3rd) return;
 
-    const isFinal = (round.toLowerCase().includes('final') && !is3rd) ||
-                    competition.notes?.[0]?.text?.toLowerCase() === 'final';
-
+    const isFinal = round.toLowerCase() === 'final';
     const competitors = competition.competitors;
     if (!competitors || competitors.length !== 2) return;
 
@@ -112,10 +106,10 @@ export function parseESPNResults(espnData) {
     const awayScore = parseInt(away.score) || 0;
     const isLiveMatch = status === 'in';
 
-    const wentET = competition.status?.type?.shortDetail?.includes('AET') ||
-                   competition.status?.type?.shortDetail?.includes('Pen') ||
-                   competition.status?.type?.description?.includes('Penalty') ||
-                   competition.status?.type?.description?.includes('Extra Time');
+    const shortDetail = competition.status?.type?.shortDetail || '';
+    const wentET = shortDetail.includes('AET') || shortDetail.includes('Pen') ||
+                   (competition.status?.type?.description || '').includes('Penalty') ||
+                   (competition.status?.type?.description || '').includes('Extra Time');
 
     const bonus = isFinal ? 1 : 0;
 
@@ -129,11 +123,8 @@ export function parseESPNResults(espnData) {
 
       if (isLiveMatch) {
         teamStats[teamId].live = true;
-        teamStats[teamId].liveGf = gf;
-        teamStats[teamId].liveGa = ga;
-        const provisionalPts = gf > ga ? 3 + bonus : gf < ga ? 0 + bonus : 1 + bonus;
-        teamStats[teamId].points += provisionalPts;
-        teamStats[teamId].played += 1;
+        teamStats[teamId].points += gf > ga ? 3 + bonus : gf < ga ? 0 + bonus : 1 + bonus;
+        teamStats[teamId].played++;
         teamStats[teamId].gf += gf;
         teamStats[teamId].ga += ga;
         teamStats[teamId].gd += gf - ga;
@@ -161,51 +152,26 @@ export function parseESPNResults(espnData) {
         teamStats[teamId].draws++;
         teamStats[teamId].points += 1 + bonus;
       }
-    });
 
-    // Track advance flags from finished games
-    if (status === 'post') {
-      const isGroupGame = (event.season?.slug || '').includes('group');
-      [home, away].forEach(c => {
-        const id = mapName(c.team?.displayName || c.team?.name);
-        if (!id) return;
-        if (c.advance === true) advanceTrue.add(id);
-        else if (c.advance === false) {
-          // In knockout rounds advance=false is unambiguous — team is out
-          // In group stage we wait until all 48 games are done (best 3rd-place rule)
-          if (!isGroupGame) advanceTrue.delete(id); // ensure not in advance set
-          advanceFalse.add(id);
-        }
-      });
-    }
-  });
-
-  // Build group standings from finished group games
-  const groupTeams = {}; // groupLabel -> Set of teamIds
-  espnData.events.forEach(e => {
-    if (!(e.season?.slug || '').includes('group')) return;
-    const groupNote = e.competitions?.[0]?.altGameNote || '';
-    const groupMatch = groupNote.match(/Group ([A-L])/i);
-    if (!groupMatch) return;
-    const grp = groupMatch[1].toUpperCase();
-    if (!groupTeams[grp]) groupTeams[grp] = new Set();
-    (e.competitions?.[0]?.competitors || []).forEach(c => {
-      const id = mapName(c.team?.displayName || c.team?.name);
-      if (id) groupTeams[grp].add(id);
+      // Track advance flags for KO elimination
+      if (!isGroupGame && status === 'post') {
+        [home, away].forEach(c => {
+          const id = mapName(c.team?.displayName || c.team?.name);
+          if (!id) return;
+          if (c.advance === true) advanceTrue.add(id);
+          else if (c.advance === false) advanceFalse.add(id);
+        });
+      }
     });
   });
 
-  // Eliminated = 4th place in group AND played all 3 group games
-  // No 4th place team can ever advance (top 2 + best 8 third-place teams qualify)
+  // Group stage: 4th place + all 3 games played = eliminated
   Object.entries(groupTeams).forEach(([grp, teamSet]) => {
     const teams = [...teamSet];
     if (teams.length < 4) return;
-
-    // Only apply if all teams in the group have played 3 games
     const allPlayedThree = teams.every(id => (teamStats[id]?.played || 0) >= 3);
     if (!allPlayedThree) return;
 
-    // Sort by pts desc, GD desc, GF desc to find 4th place
     const ranked = [...teams].sort((a, b) => {
       const sa = teamStats[a] || {};
       const sb = teamStats[b] || {};
@@ -221,11 +187,9 @@ export function parseESPNResults(espnData) {
     }
   });
 
-  // Knockout round eliminations — losing team has no further games
+  // Knockout: advance=false + no upcoming games = eliminated
   advanceFalse.forEach(id => {
     if (advanceTrue.has(id)) return;
-    const isGroupTeam = Object.values(groupTeams).some(s => s.has(id));
-    if (isGroupTeam) return; // handled above
     const hasUpcoming = espnData.events.some(e =>
       e.status?.type?.state === 'pre' &&
       (e.competitions?.[0]?.competitors || []).some(c =>
@@ -256,8 +220,6 @@ export function getNextMatchInfo(espnData) {
   return { date: next.date, home, away };
 }
 
-// Extracts goal-scoring events from a finished match's `details` array.
-// Returns array of { teamId, scorer, clock, ownGoal, penalty }
 export function getGoalsForEvent(event) {
   const comp = event?.competitions?.[0];
   const details = comp?.details || [];
@@ -270,4 +232,15 @@ export function getGoalsForEvent(event) {
       ownGoal: !!d.ownGoal,
       penalty: !!d.penaltyKick,
     }));
+}
+
+// Returns KO round matchups for the bracket
+export function getKnockoutMatches(espnData) {
+  if (!espnData?.events) return [];
+  return espnData.events
+    .filter(e => {
+      const slug = e.season?.slug || '';
+      return !slug.includes('group');
+    })
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
