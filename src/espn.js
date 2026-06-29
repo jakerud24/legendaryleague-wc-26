@@ -167,65 +167,31 @@ export function parseESPNResults(espnData) {
     }
   });
 
-  // Group elimination: 4th place + all 3 games played
-  Object.values(groupTeams).forEach(teamSet => {
-    const teams = [...teamSet];
-    if (teams.length < 4) return;
-    const allPlayedThree = teams.every(id => (teamStats[id]?.played || 0) >= 3);
-    if (!allPlayedThree) return;
+  // Confirmed group stage eliminations (all 16 teams that didn't make R32)
+  const GROUP_ELIMINATED = new Set([
+    'czechia', 'south_korea', 'qatar', 'haiti', 'turkey', 'tunisia',
+    'curacao', 'new_zealand', 'iran', 'scotland', 'saudi_arabia',
+    'iraq', 'jordan', 'panama', 'uruguay',
+  ]);
 
-    const ranked = [...teams].sort((a, b) => {
-      const sa = teamStats[a] || {};
-      const sb = teamStats[b] || {};
-      if ((sb.points || 0) !== (sa.points || 0)) return (sb.points || 0) - (sa.points || 0);
-      if ((sb.gd || 0) !== (sa.gd || 0)) return (sb.gd || 0) - (sa.gd || 0);
-      return (sb.gf || 0) - (sa.gf || 0);
-    });
-
-    const fourth = ranked[3];
-    if (fourth) {
-      if (!teamStats[fourth]) teamStats[fourth] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
-      teamStats[fourth].eliminated = true;
-    }
+  GROUP_ELIMINATED.forEach(id => {
+    if (!teamStats[id]) teamStats[id] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
+    teamStats[id].eliminated = true;
   });
 
-  // KO elimination: advance=false from a KO match + not in any upcoming game
-  koAdvanceFalse.forEach(id => {
-    if (koAdvanceTrue.has(id)) return;
-    const hasUpcoming = espnData.events.some(e =>
-      e.status?.type?.state === 'pre' &&
-      (e.competitions?.[0]?.competitors || []).some(c =>
-        mapName(c.team?.displayName || c.team?.name) === id
-      )
-    );
-    if (!hasUpcoming) {
-      if (!teamStats[id]) teamStats[id] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
-      teamStats[id].eliminated = true;
-    }
-  });
-
-  // Fallback: if ESPN advance flags aren't working for KO, also mark teams
-  // with no upcoming games AND who are in a completed KO match as loser
+  // KO round: mark losers of finished knockout matches as eliminated
   espnData.events.forEach(event => {
     const slug = event.season?.slug || '';
     if (slug.includes('group')) return;
     if (event.status?.type?.state !== 'post') return;
     const comp = event.competitions?.[0];
     const competitors = comp?.competitors || [];
-    const loser = competitors.find(c => c.winner === false && c.advance !== true);
+    const loser = competitors.find(c => c.winner === false);
     if (!loser) return;
     const id = mapName(loser.team?.displayName || loser.team?.name);
     if (!id) return;
-    const hasUpcoming = espnData.events.some(e =>
-      e.status?.type?.state === 'pre' &&
-      (e.competitions?.[0]?.competitors || []).some(c =>
-        mapName(c.team?.displayName || c.team?.name) === id
-      )
-    );
-    if (!hasUpcoming) {
-      if (!teamStats[id]) teamStats[id] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
-      teamStats[id].eliminated = true;
-    }
+    if (!teamStats[id]) teamStats[id] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
+    teamStats[id].eliminated = true;
   });
 
   return teamStats;
