@@ -94,6 +94,7 @@ function MatchCard({ event, ownerMap, expandable, isExpanded, onToggle }) {
   const awayScore = away.score ?? '';
 
   const kickoffTime = new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const venue = comp?.venue?.fullName || null;
 
   return (
     <div style={{ display: 'inline-flex', flexDirection: 'column', verticalAlign: 'top' }}>
@@ -118,7 +119,11 @@ function MatchCard({ event, ownerMap, expandable, isExpanded, onToggle }) {
           </span>
         )}
         {isFinal && <span style={{ color: 'var(--text-muted)', fontSize: 9, fontFamily: 'var(--mono)' }}>FT</span>}
-        {state === 'pre' && <span style={{ color: 'var(--text-muted)', fontSize: 9, fontFamily: 'var(--mono)' }}>{kickoffTime}</span>}
+        {state === 'pre' && (
+          <span style={{ color: 'var(--text-muted)', fontSize: 9, fontFamily: 'var(--mono)' }}>
+            {kickoffTime}{venue ? ` · ${venue}` : ''}
+          </span>
+        )}
 
         <span>{homeFlag}</span>
         <span style={{ color: homeOwner ? 'var(--gold)' : 'var(--text-secondary)' }}>

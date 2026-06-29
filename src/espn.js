@@ -59,13 +59,11 @@ export async function fetchESPNData() {
 
 export function parseESPNResults(espnData) {
   const teamStats = {};
-  const advanceFalse = new Set();
-  const advanceTrue = new Set();
 
   if (!espnData?.events) return teamStats;
 
-  // First pass: collect all group teams
-  const groupTeams = {}; // groupLabel -> Set of teamIds
+  // Build group membership from group-stage events
+  const groupTeams = {};
   espnData.events.forEach(e => {
     if (!(e.season?.slug || '').includes('group')) return;
     const note = e.competitions?.[0]?.altGameNote || '';
@@ -78,6 +76,10 @@ export function parseESPNResults(espnData) {
       if (id) groupTeams[grp].add(id);
     });
   });
+
+  // Track advance flags from KO matches
+  const koAdvanceFalse = new Set();
+  const koAdvanceTrue = new Set();
 
   espnData.events.forEach(event => {
     const status = event.status?.type?.state;
@@ -106,7 +108,7 @@ export function parseESPNResults(espnData) {
     const awayScore = parseInt(away.score) || 0;
     const isLiveMatch = status === 'in';
 
-    const shortDetail = competition.status?.type?.shortDetail || '';
+    const shortDetail = competition.status?.type?.shortDetail || event.status?.type?.shortDetail || '';
     const wentET = shortDetail.includes('AET') || shortDetail.includes('Pen') ||
                    (competition.status?.type?.description || '').includes('Penalty') ||
                    (competition.status?.type?.description || '').includes('Extra Time');
@@ -152,21 +154,21 @@ export function parseESPNResults(espnData) {
         teamStats[teamId].draws++;
         teamStats[teamId].points += 1 + bonus;
       }
-
-      // Track advance flags for KO elimination
-      if (!isGroupGame && status === 'post') {
-        [home, away].forEach(c => {
-          const id = mapName(c.team?.displayName || c.team?.name);
-          if (!id) return;
-          if (c.advance === true) advanceTrue.add(id);
-          else if (c.advance === false) advanceFalse.add(id);
-        });
-      }
     });
+
+    // Track KO advance flags
+    if (!isGroupGame && status === 'post') {
+      [home, away].forEach(c => {
+        const id = mapName(c.team?.displayName || c.team?.name);
+        if (!id) return;
+        if (c.advance === true) koAdvanceTrue.add(id);
+        else if (c.advance === false) koAdvanceFalse.add(id);
+      });
+    }
   });
 
-  // Group stage: 4th place + all 3 games played = eliminated
-  Object.entries(groupTeams).forEach(([grp, teamSet]) => {
+  // Group elimination: 4th place + all 3 games played
+  Object.values(groupTeams).forEach(teamSet => {
     const teams = [...teamSet];
     if (teams.length < 4) return;
     const allPlayedThree = teams.every(id => (teamStats[id]?.played || 0) >= 3);
@@ -187,9 +189,33 @@ export function parseESPNResults(espnData) {
     }
   });
 
-  // Knockout: advance=false + no upcoming games = eliminated
-  advanceFalse.forEach(id => {
-    if (advanceTrue.has(id)) return;
+  // KO elimination: advance=false from a KO match + not in any upcoming game
+  koAdvanceFalse.forEach(id => {
+    if (koAdvanceTrue.has(id)) return;
+    const hasUpcoming = espnData.events.some(e =>
+      e.status?.type?.state === 'pre' &&
+      (e.competitions?.[0]?.competitors || []).some(c =>
+        mapName(c.team?.displayName || c.team?.name) === id
+      )
+    );
+    if (!hasUpcoming) {
+      if (!teamStats[id]) teamStats[id] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
+      teamStats[id].eliminated = true;
+    }
+  });
+
+  // Fallback: if ESPN advance flags aren't working for KO, also mark teams
+  // with no upcoming games AND who are in a completed KO match as loser
+  espnData.events.forEach(event => {
+    const slug = event.season?.slug || '';
+    if (slug.includes('group')) return;
+    if (event.status?.type?.state !== 'post') return;
+    const comp = event.competitions?.[0];
+    const competitors = comp?.competitors || [];
+    const loser = competitors.find(c => c.winner === false && c.advance !== true);
+    if (!loser) return;
+    const id = mapName(loser.team?.displayName || loser.team?.name);
+    if (!id) return;
     const hasUpcoming = espnData.events.some(e =>
       e.status?.type?.state === 'pre' &&
       (e.competitions?.[0]?.competitors || []).some(c =>
@@ -234,13 +260,9 @@ export function getGoalsForEvent(event) {
     }));
 }
 
-// Returns KO round matchups for the bracket
 export function getKnockoutMatches(espnData) {
   if (!espnData?.events) return [];
   return espnData.events
-    .filter(e => {
-      const slug = e.season?.slug || '';
-      return !slug.includes('group');
-    })
+    .filter(e => !(e.season?.slug || '').includes('group'))
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 }

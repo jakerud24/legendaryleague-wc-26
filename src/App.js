@@ -10,10 +10,10 @@ import MatchTicker from './components/MatchTicker';
 import './App.css';
 
 const TABS = [
-  { id: 'standings', label: '🏆 Standings' },
-  { id: 'bracket', label: '🗂 Bracket' },
-  { id: 'nations', label: '🌍 Team Details' },
-  { id: 'draft', label: '📋 Draft Room' },
+  { id: 'standings', label: '🏆 Standings', primary: true },
+  { id: 'bracket', label: '🗂 Bracket', primary: true },
+  { id: 'nations', label: '🌍 Team Details', primary: false },
+  { id: 'draft', label: '📋 Draft Room', primary: false },
 ];
 
 function Countdown({ nextMatch }) {
@@ -149,11 +149,30 @@ export default function App() {
       <MatchTicker espnData={espnData} managers={managers} />
 
       <nav className="tab-nav">
-        {TABS.map(tab => (
-          <button key={tab.id} className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
-            {tab.label}
-          </button>
-        ))}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {TABS.filter(t => t.primary).map(tab => (
+            <button
+              key={tab.id}
+              className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+              style={{ fontSize: 15, padding: '10px 22px', fontWeight: 700 }}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+          {TABS.filter(t => !t.primary).map(tab => (
+            <button
+              key={tab.id}
+              className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+              style={{ fontSize: 12, padding: '6px 14px', opacity: 0.75 }}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </nav>
 
       <main className="app-main">
