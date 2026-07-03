@@ -84,7 +84,7 @@ export function parseESPNResults(espnData) {
     const wentET = shortDetail.includes('AET') || shortDetail.includes('Pen') ||
                    (competition.status?.type?.description || '').includes('Penalty') ||
                    (competition.status?.type?.description || '').includes('Extra Time');
-    const bonus = isFinal ? 1 : 0;
+    const bonus = 0; // No bonus for Final — all rounds score the same
 
     [homeId, awayId].forEach(teamId => {
       if (!teamId) return;
@@ -216,7 +216,7 @@ export function getMaxAdditionalPoints(teamId, espnData) {
   allGames.forEach(e => {
     const round = e.competitions?.[0]?.notes?.[0]?.text || '';
     const isFinal = round.toLowerCase() === 'final';
-    maxPts += isFinal ? 4 : 3;
+    maxPts += 3;
   });
 
   return maxPts;
@@ -289,7 +289,7 @@ const FULL_BRACKET = {
   // [left_team, right_team] at each level
   // null means TBD/already-won
   final: {
-    pts: 4,
+    pts: 3,
     left: { // SF_L → M101
       pts: 3,
       left: { // QF M97
@@ -355,8 +355,13 @@ function maxPtsInNode(node, mgrTeams) {
 
   let matchMax = 0;
   if (myLeftTeams.length > 0 || myRightTeams.length > 0) {
-    // At least one of my teams could reach this match
+    // At least one of my teams could reach this match — winner gets pts
     matchMax = node.pts;
+  }
+  if (myLeftTeams.length > 0 && myRightTeams.length > 0) {
+    // My teams are on BOTH sides — they could meet each other.
+    // The loser still gets +1 (assuming ET/Pens), so add that bonus.
+    matchMax += 1;
   }
 
   return leftMax + rightMax + matchMax;
