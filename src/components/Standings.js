@@ -17,8 +17,6 @@ const ESPN_NAME_MAP_REVERSE = {
   england: 'England', croatia: 'Croatia', ghana: 'Ghana', panama: 'Panama',
 };
 
-// Some ESPN events use alternate name strings for the same team across different fixtures.
-// This is a defensive list of all known aliases per team ID, checked in addition to the primary name above.
 const ESPN_NAME_ALIASES = {
   dr_congo: ['DR Congo', 'Congo DR', 'Democratic Republic of Congo'],
   bosnia: ['Bosnia-Herzegovina', 'Bosnia and Herzegovina'],
@@ -27,6 +25,8 @@ const ESPN_NAME_ALIASES = {
   curacao: ['Curaçao', 'Curacao'],
   ivory_coast: ['Ivory Coast', "Côte d'Ivoire"],
 };
+
+const DISPLAY_NAME_OVERRIDE = { bosnia: 'Bosnia' };
 
 function getAllNamesForTeam(teamId) {
   return ESPN_NAME_ALIASES[teamId] || [ESPN_NAME_MAP_REVERSE[teamId]];
@@ -42,10 +42,6 @@ function getTeamIdForEspnName(espnName) {
   return null;
 }
 
-const DISPLAY_NAME_OVERRIDE = {
-  bosnia: 'Bosnia',
-};
-
 function getNextMatchForTeam(teamId, espnData, ownerMap) {
   if (!espnData?.events) return null;
   const myNames = getAllNamesForTeam(teamId);
@@ -54,9 +50,9 @@ function getNextMatchForTeam(teamId, espnData, ownerMap) {
   const upcoming = espnData.events.filter(e => {
     const state = e.status?.type?.state;
     if (state !== 'pre' && state !== 'in') return false;
-    const comp = e.competitions?.[0];
-    const competitors = comp?.competitors || [];
-    return competitors.some(c => myNames.includes(c.team?.displayName || c.team?.name));
+    return (e.competitions?.[0]?.competitors || []).some(c =>
+      myNames.includes(c.team?.displayName || c.team?.name)
+    );
   });
 
   if (upcoming.length === 0) return null;
@@ -72,12 +68,7 @@ function getNextMatchForTeam(teamId, espnData, ownerMap) {
   const oppTeam = oppTeamId ? TEAMS.find(t => t.id === oppTeamId) : null;
   const oppOwner = oppTeam ? ownerMap[oppTeam.id] : null;
   const isLive = next.status?.type?.state === 'in';
-
-  // If opponent is TBD (no real team name yet), try to find the other upcoming match
-  // that feeds into this one — for now just show whatever ESPN gives us
-  const oppDisplayName = oppTeam
-    ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name)
-    : (oppName !== 'TBD' ? oppName : null);
+  const oppDisplayName = oppTeam ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name) : (oppName !== 'TBD' ? oppName : null);
 
   return {
     date: next.date,
@@ -129,13 +120,9 @@ function getAllResultsForTeam(teamId, espnData, ownerMap) {
       oppFlag: oppTeam?.flag || '🏳',
       oppName: oppTeam ? (DISPLAY_NAME_OVERRIDE[oppTeam.id] || oppTeam.name) : oppName,
       oppOwner,
-      myScore,
-      oppScore,
-      won,
-      lost,
+      myScore, oppScore, won, lost,
       draw: !won && !lost,
-      wentET,
-      goals,
+      wentET, goals,
       myTeamId: me.team?.id,
       isKO,
     };
@@ -160,11 +147,6 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
     (mgr.teams || []).forEach(tid => { ownerMap[tid] = mgr.name; });
   });
 
-  const getManagerGP = (mgr) => {
-    if (!mgr?.teams) return 0;
-    return mgr.teams.reduce((sum, tid) => sum + (getTeamStats(tid).played || 0), 0);
-  };
-
   const managerHasLive = (mgr) => (mgr.teams || []).some(tid => getTeamStats(tid).live);
 
   if (sorted.length === 0) {
@@ -185,12 +167,12 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
       <div className="standings-list">
         {sorted.map((mgr, idx) => {
           const isExpanded = expanded === mgr.id;
-          const gp = getManagerGP(mgr);
           const isLive = managerHasLive(mgr);
           const aliveCount = (mgr.teams || []).filter(tid => !getTeamStats(tid).eliminated).length;
           const totalTeams = (mgr.teams || []).length;
           return (
-            <div key={mgr.id} className={`manager-card ${idx === 0 && mgr.score > 0 ? 'leader' : ''} ${isLive ? 'live-card' : ''}`}
+            <div key={mgr.id}
+              className={`manager-card ${idx === 0 && mgr.score > 0 ? 'leader' : ''} ${isLive ? 'live-card' : ''}`}
               onClick={() => setExpanded(isExpanded ? null : mgr.id)}>
               <div className="manager-card-header">
                 <span className={`pick-number ${idx < 3 ? 'top' : ''}`}>#{idx + 1}</span>
@@ -200,8 +182,10 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     {isLive && <span className="live-dot" />}
                   </span>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    {gp > 0 && (
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>{gp} GP</span>
+                    {mgr.max !== null && mgr.max !== undefined && (
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                        Max: <span style={{ color: mgr.max <= mgr.score ? 'var(--text-muted)' : mgr.max < (sorted[0]?.score || 0) ? '#e05252' : 'var(--text-secondary)' }}>{mgr.max}</span>
+                      </span>
                     )}
                     {totalTeams > 0 && (
                       <span style={{
@@ -222,16 +206,11 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     const displayName = DISPLAY_NAME_OVERRIDE[tid] || team.name;
                     const isEliminated = !!stats.eliminated;
                     return (
-                      <span key={tid} className={`team-pill ${pts === 0 ? '' : pts >= 6 ? 'deep' : 'alive'} ${stats.live ? 'pill-live' : ''} ${isEliminated ? 'pill-eliminated' : ''}`}>
+                      <span key={tid} className={`team-pill ${pts === 0 ? '' : pts >= 6 ? 'deep' : 'alive'} ${stats.live ? 'pill-live' : ''}`}>
                         <span style={{ position: 'relative', display: 'inline-block' }}>
                           {team.flag}
                           {isEliminated && (
-                            <span style={{
-                              position: 'absolute', inset: 0,
-                              background: 'rgba(0,0,0,0.55)',
-                              borderRadius: 2,
-                              pointerEvents: 'none',
-                            }} />
+                            <span style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', borderRadius: 2, pointerEvents: 'none' }} />
                           )}
                         </span>
                         <span className="team-pill-name"> {displayName}</span>
@@ -265,7 +244,6 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                       const isResultsExpanded = expandedResults === resultsKey;
                       return (
                         <div key={tid} className={`expand-team ${stats.live ? 'pill-live' : ''}`} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                          {/* Team header */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span className="expand-team-flag">{team.flag}</span>
                             <div style={{ flex: 1 }}>
@@ -281,15 +259,11 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                             <span className="expand-team-pts">{pts}</span>
                           </div>
 
-                          {/* Results — expandable */}
                           {allResults.length > 0 && (
                             <>
                               <div
                                 onClick={(e) => { e.stopPropagation(); setExpandedResults(isResultsExpanded ? null : resultsKey); }}
-                                style={{
-                                  marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)',
-                                  display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer'
-                                }}
+                                style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer' }}
                               >
                                 <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>RESULTS</span>
                                 <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>
@@ -302,17 +276,14 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                                   {allResults.map((r, i) => (
                                     <div key={i} style={{ background: 'var(--green-light)', borderRadius: 6, padding: '6px 8px' }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                                        <span style={{
-                                          fontFamily: 'var(--mono)', fontSize: 9, fontWeight: 700, minWidth: 14,
-                                          color: r.won ? '#4ade80' : r.lost ? '#e05252' : 'var(--text-muted)'
-                                        }}>{r.won ? 'W' : r.lost ? 'L' : 'D'}</span>
+                                        <span style={{ fontFamily: 'var(--mono)', fontSize: 9, fontWeight: 700, minWidth: 14, color: r.won ? '#4ade80' : r.lost ? '#e05252' : 'var(--text-muted)' }}>
+                                          {r.won ? 'W' : r.lost ? 'L' : 'D'}
+                                        </span>
                                         <span>{r.oppFlag}</span>
                                         <span style={{ flex: 1, color: r.oppOwner ? 'var(--gold)' : 'var(--text-secondary)', fontWeight: r.oppOwner ? 600 : 400 }}>
                                           {r.oppOwner || r.oppName}
                                         </span>
-                                        <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 12 }}>
-                                          {r.myScore}–{r.oppScore}
-                                        </span>
+                                        <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 12 }}>{r.myScore}–{r.oppScore}</span>
                                         {r.wentET && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>AET</span>}
                                         {r.isKO && <span style={{ fontSize: 9, color: 'var(--gold)', fontFamily: 'var(--mono)' }}>KO</span>}
                                       </div>
@@ -335,12 +306,8 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                             </>
                           )}
 
-                          {/* Next match */}
                           {nextMatch ? (
-                            <div style={{
-                              marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)',
-                              display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, flexWrap: 'wrap'
-                            }}>
+                            <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--green-border)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, flexWrap: 'wrap' }}>
                               <span style={{ fontFamily: 'var(--mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
                                 {nextMatch.isLive ? 'LIVE NOW' : 'NEXT'}
                               </span>
@@ -348,9 +315,7 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                               <span style={{ color: nextMatch.oppOwner ? 'var(--gold)' : 'var(--text-secondary)', fontWeight: nextMatch.oppOwner ? 600 : 400 }}>
                                 {nextMatch.oppOwner || nextMatch.oppName || '?'}
                               </span>
-                              {nextMatch.venue && (
-                                <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>· {nextMatch.venue}</span>
-                              )}
+                              {nextMatch.venue && <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>· {nextMatch.venue}</span>}
                               <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--mono)', fontSize: 10, marginLeft: 'auto' }}>
                                 {formatPST(nextMatch.date)}
                               </span>
@@ -367,7 +332,8 @@ export default function Standings({ managers, getSortedManagers, getTeamPts, get
                     })}
                   </div>
                   <div className="expand-meta">
-                    {mgr.score} pts · {gp} GP · GD {mgr.gd >= 0 ? '+' : ''}{mgr.gd} · GF {mgr.gf}
+                    {mgr.score} pts · GD {mgr.gd >= 0 ? '+' : ''}{mgr.gd} · GF {mgr.gf}
+                    {mgr.max !== null && mgr.max !== undefined ? ` · Max: ${mgr.max}` : ''}
                   </div>
                 </div>
               )}

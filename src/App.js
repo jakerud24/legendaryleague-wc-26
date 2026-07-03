@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ref, onValue, set } from 'firebase/database';
 import { db } from './firebase';
-import { fetchESPNData, parseESPNResults, isAnyGameLive, getNextMatchInfo, clearESPNCache } from './espn';
+import { fetchESPNData, parseESPNResults, isAnyGameLive, getNextMatchInfo, clearESPNCache, getMaxPossibleScore } from './espn';
 import Standings from './components/Standings';
 import DraftRoom from './components/DraftRoom';
 import Bracket from './components/Bracket';
@@ -97,16 +97,26 @@ export default function App() {
   };
 
   const getTeamStats = (teamId) =>
-    espnStats[teamId] || { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0 };
+    espnStats[teamId] || { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
 
   const getTeamPts = (teamId) => getTeamStats(teamId).points;
   const getManagerScore = (mgr) => mgr?.teams?.reduce((s, tid) => s + getTeamPts(tid), 0) || 0;
   const getManagerGD = (mgr) => mgr?.teams?.reduce((s, tid) => s + getTeamStats(tid).gd, 0) || 0;
   const getManagerGF = (mgr) => mgr?.teams?.reduce((s, tid) => s + getTeamStats(tid).gf, 0) || 0;
+  const getManagerMax = (mgr) => {
+    if (!mgr?.teams || !espnData) return null;
+    return getMaxPossibleScore(mgr.teams, espnData, getTeamStats);
+  };
 
   const getSortedManagers = () =>
     Object.entries(managers)
-      .map(([id, mgr]) => ({ id, ...mgr, score: getManagerScore(mgr), gd: getManagerGD(mgr), gf: getManagerGF(mgr) }))
+      .map(([id, mgr]) => ({
+        id, ...mgr,
+        score: getManagerScore(mgr),
+        gd: getManagerGD(mgr),
+        gf: getManagerGF(mgr),
+        max: getManagerMax(mgr),
+      }))
       .sort((a, b) => b.score - a.score || b.gd - a.gd || b.gf - a.gf);
 
   if (loading) return (
@@ -151,24 +161,18 @@ export default function App() {
       <nav className="tab-nav">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {TABS.filter(t => t.primary).map(tab => (
-            <button
-              key={tab.id}
-              className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            <button key={tab.id} className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
               style={{ fontSize: 15, padding: '10px 22px', fontWeight: 700 }}
-              onClick={() => setActiveTab(tab.id)}
-            >
+              onClick={() => setActiveTab(tab.id)}>
               {tab.label}
             </button>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
           {TABS.filter(t => !t.primary).map(tab => (
-            <button
-              key={tab.id}
-              className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            <button key={tab.id} className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
               style={{ fontSize: 12, padding: '6px 14px', opacity: 0.75 }}
-              onClick={() => setActiveTab(tab.id)}
-            >
+              onClick={() => setActiveTab(tab.id)}>
               {tab.label}
             </button>
           ))}
