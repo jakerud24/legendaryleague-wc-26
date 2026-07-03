@@ -230,7 +230,7 @@ export function getMaxAdditionalPoints(teamId, espnData) {
 
 // R16 pairs (teams currently alive in each match)
 const R16_MATCHES = [
-  { id: 'M89', teams: ['paraguay', 'france'],     pts: 3, done: true,  winner: 'paraguay' },
+  { id: 'M89', teams: ['paraguay', 'france'],     pts: 3, done: false },
   { id: 'M90', teams: ['canada', 'morocco'],       pts: 3, done: false },
   { id: 'M91', teams: ['brazil', 'norway'],        pts: 3, done: false },
   { id: 'M92', teams: ['mexico', 'england'],       pts: 3, done: false },
@@ -294,7 +294,7 @@ const FULL_BRACKET = {
       pts: 3,
       left: { // QF M97
         pts: 3,
-        left:  { pts: 3, teams: ['paraguay', 'france'],   done: true, winner: 'paraguay' }, // M89
+        left:  { pts: 3, teams: ['paraguay', 'france'],   done: false }, // M89
         right: { pts: 3, teams: ['canada',   'morocco'],  done: false },                     // M90
       },
       right: { // QF M98
