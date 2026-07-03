@@ -59,134 +59,71 @@ export async function fetchESPNData() {
 
 export function parseESPNResults(espnData) {
   const teamStats = {};
-
   if (!espnData?.events) return teamStats;
-
-  // Build group membership from group-stage events
-  const groupTeams = {};
-  espnData.events.forEach(e => {
-    if (!(e.season?.slug || '').includes('group')) return;
-    const note = e.competitions?.[0]?.altGameNote || '';
-    const m = note.match(/Group ([A-L])/i);
-    if (!m) return;
-    const grp = m[1].toUpperCase();
-    if (!groupTeams[grp]) groupTeams[grp] = new Set();
-    (e.competitions?.[0]?.competitors || []).forEach(c => {
-      const id = mapName(c.team?.displayName || c.team?.name);
-      if (id) groupTeams[grp].add(id);
-    });
-  });
-
-  // Track advance flags from KO matches
-  const koAdvanceFalse = new Set();
-  const koAdvanceTrue = new Set();
 
   espnData.events.forEach(event => {
     const status = event.status?.type?.state;
     if (status !== 'post' && status !== 'in') return;
-
     const competition = event.competitions?.[0];
     if (!competition) return;
-
-    const slug = event.season?.slug || '';
-    const isGroupGame = slug.includes('group');
     const round = competition.notes?.[0]?.text || '';
     const is3rd = round.toLowerCase().includes('3rd') || round.toLowerCase().includes('third');
     if (is3rd) return;
-
     const isFinal = round.toLowerCase() === 'final';
     const competitors = competition.competitors;
     if (!competitors || competitors.length !== 2) return;
-
     const home = competitors.find(c => c.homeAway === 'home');
     const away = competitors.find(c => c.homeAway === 'away');
     if (!home || !away) return;
-
     const homeId = mapName(home.team?.displayName || home.team?.name);
     const awayId = mapName(away.team?.displayName || away.team?.name);
     const homeScore = parseInt(home.score) || 0;
     const awayScore = parseInt(away.score) || 0;
     const isLiveMatch = status === 'in';
-
     const shortDetail = competition.status?.type?.shortDetail || event.status?.type?.shortDetail || '';
     const wentET = shortDetail.includes('AET') || shortDetail.includes('Pen') ||
                    (competition.status?.type?.description || '').includes('Penalty') ||
                    (competition.status?.type?.description || '').includes('Extra Time');
-
     const bonus = isFinal ? 1 : 0;
 
     [homeId, awayId].forEach(teamId => {
       if (!teamId) return;
       if (!teamStats[teamId]) teamStats[teamId] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
-
       const isHome = homeId === teamId;
       const gf = isHome ? homeScore : awayScore;
       const ga = isHome ? awayScore : homeScore;
-
       if (isLiveMatch) {
         teamStats[teamId].live = true;
         teamStats[teamId].points += gf > ga ? 3 + bonus : gf < ga ? 0 + bonus : 1 + bonus;
-        teamStats[teamId].played++;
-        teamStats[teamId].gf += gf;
-        teamStats[teamId].ga += ga;
-        teamStats[teamId].gd += gf - ga;
-        if (gf > ga) teamStats[teamId].wins++;
-        else if (gf < ga) teamStats[teamId].losses++;
-        else teamStats[teamId].draws++;
+        teamStats[teamId].played++; teamStats[teamId].gf += gf; teamStats[teamId].ga += ga; teamStats[teamId].gd += gf - ga;
+        if (gf > ga) teamStats[teamId].wins++; else if (gf < ga) teamStats[teamId].losses++; else teamStats[teamId].draws++;
         return;
       }
-
       const won = isHome ? home.winner : away.winner;
       const lost = isHome ? away.winner : home.winner;
-
-      teamStats[teamId].played++;
-      teamStats[teamId].gf += gf;
-      teamStats[teamId].ga += ga;
-      teamStats[teamId].gd += gf - ga;
-
-      if (won) {
-        teamStats[teamId].wins++;
-        teamStats[teamId].points += 3 + bonus;
-      } else if (lost) {
-        teamStats[teamId].losses++;
-        teamStats[teamId].points += wentET ? 1 + bonus : 0 + bonus;
-      } else {
-        teamStats[teamId].draws++;
-        teamStats[teamId].points += 1 + bonus;
-      }
+      teamStats[teamId].played++; teamStats[teamId].gf += gf; teamStats[teamId].ga += ga; teamStats[teamId].gd += gf - ga;
+      if (won) { teamStats[teamId].wins++; teamStats[teamId].points += 3 + bonus; }
+      else if (lost) { teamStats[teamId].losses++; teamStats[teamId].points += wentET ? 1 + bonus : 0 + bonus; }
+      else { teamStats[teamId].draws++; teamStats[teamId].points += 1 + bonus; }
     });
-
-    // Track KO advance flags
-    if (!isGroupGame && status === 'post') {
-      [home, away].forEach(c => {
-        const id = mapName(c.team?.displayName || c.team?.name);
-        if (!id) return;
-        if (c.advance === true) koAdvanceTrue.add(id);
-        else if (c.advance === false) koAdvanceFalse.add(id);
-      });
-    }
   });
 
-  // Confirmed group stage eliminations (all 16 teams that didn't make R32)
+  // Confirmed group stage eliminations
   const GROUP_ELIMINATED = new Set([
     'czechia', 'south_korea', 'qatar', 'haiti', 'turkey', 'tunisia',
     'curacao', 'new_zealand', 'iran', 'scotland', 'saudi_arabia',
-    'iraq', 'jordan', 'panama', 'uruguay',
+    'iraq', 'jordan', 'panama', 'uruguay', 'uzbekistan',
   ]);
-
   GROUP_ELIMINATED.forEach(id => {
     if (!teamStats[id]) teamStats[id] = { points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, live: false };
     teamStats[id].eliminated = true;
   });
 
-  // KO round: mark losers of finished knockout matches as eliminated
+  // KO round: loser of any finished non-group match is eliminated
   espnData.events.forEach(event => {
-    const slug = event.season?.slug || '';
-    if (slug.includes('group')) return;
+    if ((event.season?.slug || '').includes('group')) return;
     if (event.status?.type?.state !== 'post') return;
-    const comp = event.competitions?.[0];
-    const competitors = comp?.competitors || [];
-    const loser = competitors.find(c => c.winner === false);
+    const loser = (event.competitions?.[0]?.competitors || []).find(c => c.winner === false);
     if (!loser) return;
     const id = mapName(loser.team?.displayName || loser.team?.name);
     if (!id) return;
@@ -214,8 +151,7 @@ export function getNextMatchInfo(espnData) {
 
 export function getGoalsForEvent(event) {
   const comp = event?.competitions?.[0];
-  const details = comp?.details || [];
-  return details
+  return (comp?.details || [])
     .filter(d => d.scoringPlay)
     .map(d => ({
       teamId: d.team?.id,
